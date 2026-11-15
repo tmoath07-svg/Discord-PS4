@@ -2,7 +2,7 @@
 
 Unofficial native PlayStation 4 homebrew interface prototype built with OpenOrbis SDL2.
 
-## Current state
+## Version 1.10\n\n## Current state
 
 - The native app interface is English-only temporarily while Arabic glyph shaping and spacing are being repaired.
 - The native Login page now starts a per-device link session against the Cloudflare Worker, creates a real QR locally from the returned session URL, and polls for completion.

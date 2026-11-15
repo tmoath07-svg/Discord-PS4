@@ -103,7 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           make clean || true
-          make -j2 TITLE="Discord PS4" VERSION=1.02 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
+          make -j2 TITLE="Discord PS4" VERSION=1.10 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
           test -s IV0000-DISC00001_00-DISCORDPS4000000.pkg
           test -s eboot.bin
           grep -Fq "assets/fonts/NotoSansArabic.ttf" pkg.gp4
