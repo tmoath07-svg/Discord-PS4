@@ -7,7 +7,7 @@ Unofficial native PlayStation 4 homebrew interface prototype built with OpenOrbi
 - Uses the previously PS4-tested FreeType Arabic presentation-form renderer; the newer HarfBuzz renderer was removed after the PS4 build showed missing-glyph boxes.
 - The login page clearly indicates that no real QR code is issued yet.
 - The server page does not fabricate guilds or display demo server data.
-- D-pad left/right switches between Login and Servers; Enter/A selects the current page.
+- D-pad left/right switches between Login and Servers; Enter or the controller confirm button displays the current login status.
 
 ## Real Discord integration status
 Real per-user QR login and real guild/channel data require Discord Social SDK. Discord's console device-authorization flow issues a unique user code and QR URL, and the SDK exposes methods such as GetUserGuilds and GetGuildChannels. PlayStation console middleware is distributed only after the developer has a PlayStation Partners account and completes Discord's console middleware request/approval process. This repository currently uses OpenOrbis homebrew and does not contain those approved PlayStation SDK binaries. Therefore this build is the UI foundation, not a working Discord sign-in client.
