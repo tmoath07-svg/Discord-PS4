@@ -18,6 +18,16 @@ jobs:
       - name: Checkout project
         uses: actions/checkout@v4
 
+      - name: Check OAuth backend source and tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate OAuth backend
+        run: |
+          node --check server/worker.js
+          node --test server/worker.test.mjs
+          node --check src/app.js
+
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang lld make git curl
 

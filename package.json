@@ -4,6 +4,7 @@
   "private": true,
   "description": "Controller-first Discord-style web client prototype for PS4",
   "scripts": {
-    "check": "node --check src/app.js"
+    "check": "node --check src/app.js",
+    "test": "node --test server/worker.test.mjs"
   }
 }
