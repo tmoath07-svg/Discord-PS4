@@ -27,7 +27,12 @@ static int linkState=0;
 static std::string sessionId, pollToken, qrUrl, linkedUser, networkMessage;
 static int linkedGuildCount=0;
 static uint32_t lastPoll=0;
+static std::string toastTitle, toastBody;
+static uint32_t toastUntil=0;
 static void rect(int x,int y,int w,int h,int r,int g,int b);
+static void showToast(const std::string& title,const std::string& body) {
+    toastTitle=title; toastBody=body; toastUntil=SDL_GetTicks()+4500;
+}
 
 static bool initNetwork() {
     if(static_cast<int32_t>(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET))<0) return false;
@@ -131,6 +136,7 @@ static int httpRequest(const char* method,const std::string& path,const std::str
 static bool beginLink() {
     linkState=0; qrUrl.clear(); linkedUser.clear(); linkedGuildCount=0;
     networkMessage.clear();
+    showToast("Discord","Starting secure account linking...");
     if(!networkReady) { networkMessage="PS4 network service is unavailable."; return false; }
     if(std::string(DISCORD_WORKER_BASE_URL).find(".example.workers.dev")!=std::string::npos) {
         networkMessage="Worker URL is not configured in the build yet."; return false;
@@ -163,6 +169,7 @@ static void pollLink() {
         linkedGuildCount=jsonArrayObjectCount(response,"guilds");
         linkState=2;
         networkMessage="Discord account linked successfully.";
+        showToast("Discord connected",linkedUser.empty()?"Your account is now linked.":("Welcome, "+linkedUser));
     } else if(state=="denied" || state=="error" || state=="reauth_required") {
         linkState=3;
         networkMessage="Discord linking did not complete. Start again.";
@@ -254,6 +261,37 @@ static void rect(int x,int y,int w,int h,int r,int g,int b) {
     SDL_SetRenderDrawColor(ren,r,g,b,255);
     SDL_Rect q{x,y,w,h};
     SDL_RenderFillRect(ren,&q);
+}
+
+static void rectAlpha(int x,int y,int w,int h,int r,int g,int b,int a) {
+    SDL_SetRenderDrawColor(ren,r,g,b,a);
+    SDL_Rect q{x,y,w,h};
+    SDL_RenderFillRect(ren,&q);
+}
+
+static void roundedPanel(int x,int y,int w,int h,int radius,int r,int g,int b,int a) {
+    rectAlpha(x+radius,y,w-2*radius,h,r,g,b,a);
+    rectAlpha(x,y+radius,radius,h-2*radius,r,g,b,a);
+    rectAlpha(x+w-radius,y+radius,radius,h-2*radius,r,g,b,a);
+    for(int dy=-radius;dy<=radius;++dy) {
+        const int dx=static_cast<int>(std::sqrt(static_cast<double>(radius*radius-dy*dy)));
+        SDL_SetRenderDrawColor(ren,r,g,b,a);
+        SDL_RenderDrawLine(ren,x+radius-dx,y+radius+dy,x+radius+dx,y+radius+dy);
+        SDL_RenderDrawLine(ren,x+w-radius-dx,y+radius+dy,x+w-radius+dx,y+radius+dy);
+    }
+}
+
+static void drawNotificationToast() {
+    if(toastUntil==0) return;
+    const uint32_t now=SDL_GetTicks();
+    if(static_cast<int32_t>(toastUntil-now)<=0) { toastUntil=0; return; }
+    const uint32_t remaining=toastUntil-now;
+    const int alpha=remaining<450?static_cast<int>(remaining*215/450):215;
+    const int x=1320,y=34,w=560,h=112;
+    roundedPanel(x,y,w,h,22,18,20,28,alpha);
+    roundedPanel(x+12,y+17,6,h-34,3,88,101,242,alpha);
+    drawText(toastTitle.c_str(),x+36,y+19,23,255,255,255,false);
+    drawText(toastBody.c_str(),x+36,y+58,17,205,210,220,false);
 }
 
 static void drawText(const char* text,int x,int y,int size,int r,int g,int b,bool rtl=false) {
@@ -361,6 +399,7 @@ static void draw() {
         }
         drawText("No demo servers or fabricated data will be shown",700,775,18,148,155,164);
     }
+    drawNotificationToast();
     SDL_RenderPresent(ren);
     SDL_UpdateWindowSurface(win);
 }
@@ -406,6 +445,7 @@ int main() {
         }
         const uint32_t now=SDL_GetTicks();
         if(page==0 && linkState==1 && now-lastPoll>=2000) { pollLink(); lastPoll=now; draw(); }
+        if(toastUntil!=0) draw();
         SDL_Delay(10);
     }
     shutdownNetwork();
