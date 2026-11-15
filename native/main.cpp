@@ -6,6 +6,7 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <orbis/Http.h>
 #include <orbis/Net.h>
 #include <orbis/Ssl.h>
@@ -256,6 +257,8 @@ static std::vector<uint32_t> shapeArabic(const char* text) {
     for (auto it=cps.rbegin();it!=cps.rend();++it) visual.push_back(*it);
     return visual;
 }
+
+static void drawText(const char* text,int x,int y,int size,int r,int g,int b,bool rtl=false);
 
 static void rect(int x,int y,int w,int h,int r,int g,int b) {
     SDL_SetRenderDrawColor(ren,r,g,b,255);
