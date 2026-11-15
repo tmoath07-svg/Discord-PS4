@@ -47,6 +47,12 @@ async function seal(value,keyText){
  const key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt"]),iv=crypto.getRandomValues(new Uint8Array(12));
  const data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,enc.encode(value));return {iv:b64(iv),data:b64(new Uint8Array(data))};
 }
+async function openSeal(value,keyText){
+ const raw=un64(keyText);if(raw.length!==32)throw new Error("TOKEN_ENCRYPTION_KEY must be 32 bytes");
+ const key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["decrypt"]);
+ const plain=await crypto.subtle.decrypt({name:"AES-GCM",iv:un64(value.iv)},key,un64(value.data));
+ return dec.decode(plain);
+}
 async function callback(req,env){
  const u=new URL(req.url),state=u.searchParams.get("state")||"",st=await read(env.LINKS,"oauth:"+state);
  if(!state||!st)return html(page("تعذر إكمال الربط","انتهت صلاحية الطلب. ارجع إلى PS4 وابدأ جلسة جديدة."),400);
@@ -76,6 +82,27 @@ async function status(req,env,id){
  if(s.status==="linked")return json({status:"linked",user:s.user,guilds:s.guilds||[],linked_at:new Date(s.linkedAt).toISOString()});
  return json({status:s.status,expires_at:new Date(s.expiresAt).toISOString()});
 }
+async function refresh(req,env,id){
+ if(req.method!=="POST")return json({error:"method_not_allowed"},405);
+ const s=await getSession(env,id);if(!s||s.status!=="linked"||!s.refresh_token)return json({error:"link_not_found"},404);
+ const supplied=bearer(req);if(!supplied||!same(await hash(supplied),un64(s.pollHash)))return json({error:"unauthorized"},401);
+ const oldRefresh=await openSeal(s.refresh_token,env.TOKEN_ENCRYPTION_KEY);
+ const form=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID,client_secret:env.DISCORD_CLIENT_SECRET,grant_type:"refresh_token",refresh_token:oldRefresh});
+ const response=await fetch(TOKEN,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});
+ const token=await response.json();
+ if(!response.ok||!token.access_token){s.status="reauth_required";await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return json({error:"reauth_required"},401);}
+ const headers={authorization:"Bearer "+token.access_token};
+ const ur=await fetch(API+"/users/@me",{headers});if(!ur.ok)return fail(env,s,"profile_refresh_failed");
+ const user=await ur.json(),gr=await fetch(API+"/users/@me/guilds?limit=200",{headers});
+ if(!gr.ok)return fail(env,s,"guild_refresh_failed");
+ const guilds=await gr.json();if(!Array.isArray(guilds))return fail(env,s,"guild_response_invalid");
+ s.user={id:user.id,username:user.username,global_name:user.global_name||null,avatar:user.avatar||null};
+ s.guilds=guilds.map(g=>({id:g.id,name:g.name,icon:g.icon||null,owner:!!g.owner}));
+ if(token.refresh_token)s.refresh_token=await seal(token.refresh_token,env.TOKEN_ENCRYPTION_KEY);
+ s.scopes=token.scope||s.scopes;s.linkedAt=Date.now();
+ await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:LINKED_TTL});
+ return json({status:"linked",user:s.user,guilds:s.guilds,linked_at:new Date(s.linkedAt).toISOString()});
+}
 export default {async fetch(req,env){
  const u=new URL(req.url);
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,OPTIONS","access-control-allow-headers":"authorization,content-type","access-control-max-age":"86400"}});
@@ -84,6 +111,8 @@ export default {async fetch(req,env){
   if(u.pathname==="/api/link/start"){const r=await start(req,env);r.headers.set("access-control-allow-origin","*");return r;}
   const sm=u.pathname.match(/^\/api\/link\/status\/([A-Za-z0-9_-]+)$/);
   if(sm){const r=await status(req,env,sm[1]);r.headers.set("access-control-allow-origin","*");return r;}
+  const rm=u.pathname.match(/^\/api\/link\/refresh\/([A-Za-z0-9_-]+)$/);
+  if(rm){const r=await refresh(req,env,rm[1]);r.headers.set("access-control-allow-origin","*");return r;}
   const lm=u.pathname.match(/^\/link\/([A-Za-z0-9_-]+)$/);
   if(lm&&req.method==="GET")return linkPage(lm[1],env,req);
   if(u.pathname==="/auth/discord"&&req.method==="GET"){if(missing(env).length)return json({error:"server_not_configured"},503);return begin(req,env,u.searchParams.get("session")||"");}
