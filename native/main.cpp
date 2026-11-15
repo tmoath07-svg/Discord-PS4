@@ -174,7 +174,7 @@ static void draw() {
 
 int main() {
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK)!=0) return 1;
-    if(sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE)!=0) return 2;
+    if(sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL)!=0) return 2;
     if(FT_Init_FreeType(&ftLib)!=0) return 3;
     if(FT_New_Face(ftLib,"/app0/assets/fonts/NotoSansArabic.ttf",0,&arabicFace)!=0) return 4;
     win=SDL_CreateWindow("Discord PS4",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,1920,1080,SDL_WINDOW_SHOWN);
