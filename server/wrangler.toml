@@ -1,0 +1,13 @@
+name = "discord-ps4-link"
+main = "worker.js"
+compatibility_date = "2026-11-15"
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID"
+
+# Configure Worker variables/secrets in Cloudflare:
+# DISCORD_CLIENT_ID
+# DISCORD_CLIENT_SECRET (secret)
+# DISCORD_REDIRECT_URI = https://YOUR-WORKER-DOMAIN/auth/callback
+# TOKEN_ENCRYPTION_KEY (secret; base64url-encoded 32-byte key)
