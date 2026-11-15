@@ -1,0 +1,42 @@
+name: Discord PS4 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript
+        run: npm run check
+      - name: Validate required project files
+        run: |
+          test -s index.html
+          test -s src/styles.css
+          test -s src/app.js
+          test -s README.md
+      - name: Package web preview
+        run: |
+          mkdir -p dist
+          cp index.html dist/
+          cp -R src dist/src
+          cp README.md dist/
+      - name: Upload web preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: discord-ps4-web-preview
+          path: dist/
+          if-no-files-found: error
