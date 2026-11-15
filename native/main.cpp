@@ -206,13 +206,14 @@ int main() {
             if(e.type==SDL_QUIT) run=false;
             if(e.type==SDL_KEYDOWN) {
                 if(e.key.keysym.sym==SDLK_ESCAPE) run=false;
-                if(e.key.keysym.sym==SDLK_DOWN) selected=(selected+1)%4;
-                if(e.key.keysym.sym==SDLK_UP) selected=(selected+3)%4;
+                if(e.key.keysym.sym==SDLK_RIGHT) { page=1; loginNotice=false; }
+                if(e.key.keysym.sym==SDLK_LEFT) { page=0; loginNotice=false; }
+                if(e.key.keysym.sym==SDLK_RETURN || e.key.keysym.sym==SDLK_KP_ENTER) { if(page==0) loginNotice=true; else page=0; }
                 draw();
             }
             if(e.type==SDL_JOYHATMOTION) {
-                if(e.jhat.value&SDL_HAT_DOWN) selected=(selected+1)%4;
-                if(e.jhat.value&SDL_HAT_UP) selected=(selected+3)%4;
+                if(e.jhat.value&SDL_HAT_RIGHT) { page=1; loginNotice=false; }
+                if(e.jhat.value&SDL_HAT_LEFT) { page=0; loginNotice=false; }
                 draw();
             }
         }
