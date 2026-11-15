@@ -332,83 +332,122 @@ static void drawText(const char* text,int x,int y,int size,int r,int g,int b,boo
     }
 }
 
+static void drawCircle(int cx,int cy,int radius,int r,int g,int b,int a=255) {
+    SDL_SetRenderDrawColor(ren,r,g,b,a);
+    for(int dy=-radius;dy<=radius;++dy) {
+        const int dx=static_cast<int>(std::sqrt(static_cast<double>(radius*radius-dy*dy)));
+        SDL_RenderDrawLine(ren,cx-dx,cy+dy,cx+dx,cy+dy);
+    }
+}
+static void drawNavItem(int y,const char* label,const char* symbol,bool active) {
+    if(active) roundedPanel(116,y,258,54,17,75,82,119,210);
+    drawCircle(145,y+27,17,active?103:60,active?112:67,active?245:84);
+    drawText(symbol,139,y+13,21,255,255,255,false);
+    drawText(label,176,y+15,20,active?255:174,active?255:181,active?255:194,false);
+}
 static void draw() {
-    rect(0,0,1920,1080,49,51,56);
-    rect(0,0,82,1080,30,31,34);
-    rect(82,0,330,1080,43,45,49);
+    rect(0,0,1920,1080,13,16,27);
+    rectAlpha(0,0,1920,240,31,35,63,90);
+    roundedPanel(22,22,72,1036,25,20,24,40,240);
+    roundedPanel(108,22,286,1036,25,19,23,38,230);
+    roundedPanel(410,22,1486,1036,27,18,22,36,225);
 
-    // Discord-inspired navigation rail
-    rect(17,24,48,48,88,101,242); drawText("D",31,34,30,255,255,255);
-    rect(25,91,32,2,79,82,91);
-    rect(17,111,48,48,page==1?88:65,page==1?101:67,page==1?242:74);
-    drawText("S",31,121,28,255,255,255);
-    rect(17,174,48,48,page==0?88:65,page==0?101:67,page==0?242:74);
-    drawText("Q",31,184,27,255,255,255);
+    drawCircle(58,67,25,91,101,245);
+    drawText("D",49,49,30,255,255,255,false);
+    rectAlpha(39,111,38,2,91,97,128,180);
+    drawCircle(58,160,20,page==0?100:55,page==0?108:62,page==0?247:77);
+    drawText("L",51,146,21,255,255,255,false);
+    drawCircle(58,222,20,page==1?100:55,page==1?108:62,page==1?247:77);
+    drawText("S",51,208,21,255,255,255,false);
+    drawCircle(58,284,20,page==2?100:55,page==2?108:62,page==2?247:77);
+    drawText("G",51,270,21,255,255,255,false);
 
-    drawText("Discord",105,29,29,242,243,245);
-    rect(82,78,330,1,37,39,43);
-    drawText("NAVIGATION",105,112,18,148,155,164);
-    if(page==0) rect(96,145,300,52,64,66,73);
-    if(page==1) rect(96,209,300,52,64,66,73);
-    drawText("Login",112,157,23,page==0?255:190,page==0?255:192,page==0?255:200);
-    drawText("Servers",112,221,23,page==1?255:190,page==1?255:192,page==1?255:200);
+    drawText("DISCORD",132,55,16,143,151,177,false);
+    drawText("Your space",132,88,27,245,247,255,false);
+    drawNavItem(145,"Account","L",page==0);
+    drawNavItem(211,"Servers","S",page==1);
+    drawNavItem(277,"Settings","G",page==2);
+    rectAlpha(132,958,238,1,95,103,130,100);
+    drawCircle(157,1008,19,91,101,245);
+    drawText("D",150,995,22,255,255,255,false);
+    drawText("Discord PS4",188,989,18,241,243,251,false);
+    drawText(linkState==2?"Connected":"Not connected",188,1018,14,linkState==2?126:155,linkState==2?224:164,linkState==2?166:181,false);
 
-    rect(82,990,330,90,35,36,40);
-    rect(101,1010,42,42,88,101,242);
-    drawText("M",113,1014,27,255,255,255);
-    drawText("Discord PS4",385,1009,22,242,243,245);
-    drawText(linkState==2?"Connected":"Not connected",105,1038,16,148,155,164);
+    drawText(page==0?"ACCOUNT":(page==1?"SERVERS":"SETTINGS"),458,48,15,145,154,184,false);
+    drawText(page==0?"Connect your account":(page==1?"Your communities":"Application preferences"),458,78,27,245,247,255,false);
+    roundedPanel(1712,48,148,42,15,31,37,59,220);
+    drawCircle(1734,69,5,linkState==2?91:224,linkState==2?215:171,linkState==2?156:91);
+    drawText(linkState==2?"ONLINE":"OFFLINE",1750,57,14,203,209,226,false);
 
-    rect(412,0,1508,78,49,51,56);
-    rect(412,77,1508,1,37,39,43);
     if(page==0) {
-        drawText("Discord Login",470,28,28,242,243,245);
-        rect(640,145,1000,790,43,45,49);
-        drawText("Connect your Discord account",700,190,30,242,243,245);
-        drawText("Each user connects their own account",700,248,22,185,187,194);
-
+        drawText("Welcome to Discord on PlayStation",474,178,34,248,249,255,false);
+        drawText("Link your account securely using Discord's official sign-in.",476,231,19,166,176,201,false);
+        roundedPanel(474,300,1350,590,28,29,34,57,220);
+        roundedPanel(510,338,560,514,22,22,28,47,245);
+        drawCircle(790,492,83,87,97,239);
+        drawText("D",766,442,96,255,255,255,false);
+        drawText("Your account, connected",584,612,25,245,247,255,false);
+        drawText("Use the QR code to authorize this PS4 app.",584,659,17,165,176,199,false);
         if(linkState==1 && !qrUrl.empty()) {
-            drawQr(qrUrl,910,330,360);
-            drawText("Scan this QR with your phone",700,735,20,196,199,206);
-            drawText("Open the page and continue to Discord",700,780,18,196,199,206);
+            roundedPanel(1190,365,360,360,24,248,249,252,255);
+            drawQr(qrUrl,1200,375,340);
+            drawText("SCAN TO CONTINUE",1215,754,16,177,187,212,false);
+            drawText("Approve the request on Discord.",1175,790,17,174,184,207,false);
         } else if(linkState==2) {
-            rect(910,330,360,360,65,67,74);
-            drawText("OK",1055,450,54,255,255,255,false);
-            drawText("Connected as",700,735,20,196,199,206);
-            drawText(linkedUser.c_str(),700,780,24,255,255,255);
+            drawCircle(1370,500,68,52,131,101);
+            drawText("OK",1337,470,46,255,255,255,false);
+            drawText("Account connected",1190,625,25,242,247,255,false);
+            drawText(linkedUser.empty()?"Discord user":linkedUser.c_str(),1190,669,19,170,222,191,false);
+            drawText((std::to_string(linkedGuildCount)+" servers available").c_str(),1190,713,17,170,180,204,false);
         } else {
-            rect(910,330,360,360,255,255,255);
-            rect(925,345,330,330,235,237,240);
-            rect(1040,455,100,100,65,67,74);
-            drawText("LINK",1100,478,36,255,255,255,false);
-            drawText(networkMessage.empty()?"Press X to create a real QR code":networkMessage.c_str(),650,735,19,196,199,206);
-            drawText("Each person links their own Discord account",700,780,18,148,155,164);
+            roundedPanel(1190,365,360,360,24,35,41,66,255);
+            drawCircle(1370,510,68,75,85,130);
+            drawText("QR",1337,489,38,255,255,255,false);
+            drawText("Press X to generate a secure QR code",1125,754,16,182,191,214,false);
+            drawText("Your password is entered only on Discord.",1110,790,16,147,159,187,false);
         }
-        rect(790,840,700,2,65,67,74);
-        drawText("Press RIGHT to open the Servers page",700,875,20,148,155,164);
+        if(!networkMessage.empty()) drawText(networkMessage.c_str(),515,832,15,226,164,171,false);
+        drawText("Press X to link  |  Use LEFT / RIGHT to navigate",515,930,16,133,145,175,false);
+    } else if(page==1) {
+        drawText("Your servers",474,174,32,246,248,255,false);
+        drawText("Communities available to your linked Discord account.",476,222,18,165,176,200,false);
+        roundedPanel(474,280,1350,610,26,27,32,53,230);
+        if(linkState==2 && linkedGuildCount>0) {
+            drawText((std::to_string(linkedGuildCount)+" SERVERS").c_str(),520,318,15,151,161,190,false);
+            drawText("Your account is linked. Server names will appear when loaded.",520,380,18,225,230,242,false);
+            drawText("Server artwork and channel navigation are the next implementation step.",520,430,16,151,163,190,false);
+        } else if(linkState==2) {
+            drawCircle(1148,500,57,55,65,91);
+            drawText("0",1135,477,35,218,224,239,false);
+            drawText("No servers found for this account",1240,475,22,242,245,253,false);
+            drawText("Your linked Discord account currently has no accessible servers.",1240,519,16,158,170,195,false);
+        } else {
+            drawCircle(1148,500,57,55,65,91);
+            drawText("S",1134,477,35,218,224,239,false);
+            drawText("Connect Discord to see your servers",1240,475,22,242,245,253,false);
+            drawText("Only real server data returned by Discord will appear here.",1240,519,16,158,170,195,false);
+        }
     } else {
-        drawText("Your Discord Servers",470,28,28,242,243,245);
-        rect(470,140,1380,820,43,45,49);
-        drawText("SERVERS",510,180,24,242,243,245);
-        rect(510,225,1300,1,65,67,74);
-        rect(1030,355,250,250,56,58,64);
-        drawText("D",1172,420,76,255,255,255,false);
-        if(linkState==2) {
-            drawText("Connected as",700,620,21,185,187,194);
-            drawText(linkedUser.c_str(),700,665,28,242,243,245);
-            drawText("Servers available: ",700,725,20,185,187,194);
-            drawText(std::to_string(linkedGuildCount).c_str(),920,725,20,242,243,245);
-        } else {
-            drawText("No servers to display yet",700,670,27,242,243,245);
-            drawText("Connect your Discord account to load your servers",700,725,20,185,187,194);
-        }
-        drawText("No demo servers or fabricated data will be shown",700,775,18,148,155,164);
+        drawText("Settings",474,174,32,246,248,255,false);
+        drawText("Application information and connection status.",476,222,18,165,176,200,false);
+        roundedPanel(474,280,1350,610,26,27,32,53,230);
+        drawText("GENERAL",520,326,15,147,158,187,false);
+        roundedPanel(510,365,1270,104,18,37,43,65,230);
+        drawText("Language",544,388,20,243,246,255,false);
+        drawText("English (default)",544,424,15,155,167,193,false);
+        drawText("Arabic interface is being rebuilt; it is not enabled in this build.",1030,405,15,155,167,193,false);
+        roundedPanel(510,493,1270,104,18,37,43,65,230);
+        drawText("Discord connection",544,516,20,243,246,255,false);
+        drawText(linkState==2?"Your account is linked.":"No Discord account is linked.",544,552,15,155,167,193,false);
+        roundedPanel(510,621,1270,104,18,37,43,65,230);
+        drawText("Build",544,644,20,243,246,255,false);
+        drawText("Discord PS4 | Native interface prototype | v1.10",544,680,15,155,167,193,false);
+        drawText("Some Discord features require separate approved platform access.",520,808,15,149,160,188,false);
     }
     drawNotificationToast();
     SDL_RenderPresent(ren);
     SDL_UpdateWindowSurface(win);
 }
-
 int main() {
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK)!=0) return 1;
     if(sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL)!=0) return 2;
@@ -433,8 +472,8 @@ int main() {
             if(e.type==SDL_QUIT) run=false;
             if(e.type==SDL_KEYDOWN) {
                 if(e.key.keysym.sym==SDLK_ESCAPE) run=false;
-                if(e.key.keysym.sym==SDLK_RIGHT) page=1;
-                if(e.key.keysym.sym==SDLK_LEFT) page=0;
+                if(e.key.keysym.sym==SDLK_RIGHT && page<2) ++page;
+                if(e.key.keysym.sym==SDLK_LEFT && page>0) --page;
                 if(e.key.keysym.sym==SDLK_RETURN || e.key.keysym.sym==SDLK_KP_ENTER) { if(page==0) beginLink(); else page=0; }
                 draw();
             }
@@ -443,8 +482,8 @@ int main() {
                 draw();
             }
             if(e.type==SDL_JOYHATMOTION) {
-                if(e.jhat.value&SDL_HAT_RIGHT) page=1;
-                if(e.jhat.value&SDL_HAT_LEFT) page=0;
+                if(e.jhat.value&SDL_HAT_RIGHT && page<2) ++page;
+                if(e.jhat.value&SDL_HAT_LEFT && page>0) --page;
                 draw();
             }
         }
