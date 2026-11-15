@@ -2,7 +2,7 @@ name: Discord PS4 Native PKG Build
 
 on:
   push:
-    branches: [main, native-ps4-build]
+    branches: [main, native-ps4-build, feature/discord-notification-overlay]
   pull_request:
     branches: [main]
   workflow_dispatch:
