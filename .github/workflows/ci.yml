@@ -1,8 +1,8 @@
-name: Discord PS4 CI
+name: Discord PS4 Native PKG Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, native-ps4-build]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,32 +11,44 @@ permissions:
   contents: read
 
 jobs:
-  frontend-check:
-    runs-on: ubuntu-latest
+  build-pkg:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Validate JavaScript
-        run: npm run check
-      - name: Validate required project files
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang lld make
+      - name: Download pinned OpenOrbis toolchain
         run: |
-          test -s index.html
-          test -s src/styles.css
-          test -s src/app.js
-          test -s README.md
-      - name: Package web preview
+          curl --fail --location --retry 3 https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz --output /tmp/openorbis.tar.gz
+          echo '3c7cd5bb593ca74fa1c13fd59f3938dc0fc07985167f7275063019e63abe4526  /tmp/openorbis.tar.gz' | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/openorbis"
+          tar -xzf /tmp/openorbis.tar.gz -C "$RUNNER_TEMP/openorbis" --strip-components=2
+          echo "OO_PS4_TOOLCHAIN=$RUNNER_TEMP/openorbis" >> "$GITHUB_ENV"
+      - name: Replace SDL2 sample entry point with native Discord UI
         run: |
-          mkdir -p dist
-          cp index.html dist/
-          cp -R src dist/src
-          cp README.md dist/
-      - name: Upload web preview
+          test -d "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2"
+          cp native/main.cpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/main.cpp"
+      - name: Compile and package
+        working-directory: ${{ runner.temp }}/openorbis/samples/SDL2
+        run: |
+          make clean || true
+          make -j2
+          set -- ./*.pkg
+          test -s "$1"
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp "$1" "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
+          cp eboot.bin "$GITHUB_WORKSPACE/dist/eboot.bin"
+      - name: Validate output
+        run: |
+          test -s dist/Discord-PS4.pkg
+          test -s dist/eboot.bin
+          file dist/Discord-PS4.pkg dist/eboot.bin
+          sha256sum dist/Discord-PS4.pkg dist/eboot.bin > dist/SHA256SUMS.txt
+      - name: Upload native PS4 package
         uses: actions/upload-artifact@v4
         with:
-          name: discord-ps4-web-preview
+          name: discord-ps4-native-pkg
           path: dist/
           if-no-files-found: error
