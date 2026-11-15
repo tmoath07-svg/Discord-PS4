@@ -27,6 +27,7 @@ static bool networkReady=false;
 static int linkState=0;
 static std::string sessionId, pollToken, qrUrl, linkedUser, networkMessage;
 static int linkedGuildCount=0;
+static std::vector<std::string> linkedGuildNames;
 static uint32_t lastPoll=0;
 static std::string toastTitle, toastBody;
 static uint32_t toastUntil=0;
@@ -96,6 +97,34 @@ static int jsonArrayObjectCount(const std::string& json,const std::string& key) 
     return count;
 }
 
+static std::vector<std::string> parseGuildNames(const std::string& json) {
+    std::vector<std::string> names;
+    size_t p=json.find("\"guilds\"");
+    if(p==std::string::npos) return names;
+    p=json.find('[',p);
+    if(p==std::string::npos) return names;
+    int depth=0; bool quoted=false,escape=false; size_t start=0;
+    for(++p;p<json.size();++p) {
+        const char c=json[p];
+        if(quoted) {
+            if(escape) escape=false;
+            else if(c=='\\') escape=true;
+            else if(c=='"') quoted=false;
+            continue;
+        }
+        if(c=='"') quoted=true;
+        else if(c=='{') { if(depth==0) start=p; ++depth; }
+        else if(c=='}' && depth>0) {
+            --depth;
+            if(depth==0) {
+                const std::string name=jsonString(json.substr(start,p-start+1),"name");
+                if(!name.empty()) names.push_back(name);
+            }
+        } else if(c==']' && depth==0) break;
+    }
+    return names;
+}
+
 static int httpRequest(const char* method,const std::string& path,const std::string& body,const std::string& bearer,std::string& response) {
     if(!networkReady) return -1;
     std::string base=DISCORD_WORKER_BASE_URL;
@@ -137,7 +166,7 @@ static int httpRequest(const char* method,const std::string& path,const std::str
 }
 
 static bool beginLink() {
-    linkState=0; qrUrl.clear(); linkedUser.clear(); linkedGuildCount=0;
+    linkState=0; qrUrl.clear(); linkedUser.clear(); linkedGuildCount=0; linkedGuildNames.clear();
     networkMessage.clear();
     showToast("Discord","Starting secure account linking...");
     if(!networkReady) { networkMessage="PS4 network service is unavailable."; return false; }
@@ -169,7 +198,8 @@ static void pollLink() {
     if(state=="linked") {
         linkedUser=jsonString(response,"global_name");
         if(linkedUser.empty()) linkedUser=jsonString(response,"username");
-        linkedGuildCount=jsonArrayObjectCount(response,"guilds");
+        linkedGuildNames=parseGuildNames(response);
+        linkedGuildCount=static_cast<int>(linkedGuildNames.size());
         linkState=2;
         networkMessage="Discord account linked successfully.";
         showToast("Discord connected",linkedUser.empty()?"Your account is now linked.":("Welcome, "+linkedUser));
@@ -414,8 +444,18 @@ static void draw() {
         roundedPanel(474,280,1350,610,26,27,32,53,230);
         if(linkState==2 && linkedGuildCount>0) {
             drawText((std::to_string(linkedGuildCount)+" SERVERS").c_str(),520,318,15,151,161,190,false);
-            drawText("Your account is linked. Server names will appear when loaded.",520,380,18,225,230,242,false);
-            drawText("Server artwork and channel navigation are the next implementation step.",520,430,16,151,163,190,false);
+            const int visible=linkedGuildCount>12?12:linkedGuildCount;
+            for(int i=0;i<visible;++i) {
+                const int col=i%3,row=i/3;
+                const int x=520+col*410,y=365+row*112;
+                roundedPanel(x,y,374,88,18,39,45,68,235);
+                drawCircle(x+42,y+44,25,82+(i*11)%35,91+(i*13)%35,190+(i*7)%55);
+                const std::string initial=linkedGuildNames[i].substr(0,1);
+                drawText(initial.c_str(),x+35,y+29,22,255,255,255,false);
+                drawText(linkedGuildNames[i].c_str(),x+82,y+31,17,242,245,253,false);
+            }
+            if(linkedGuildCount>visible)
+                drawText((std::to_string(linkedGuildCount-visible)+" additional servers").c_str(),520,830,15,151,163,190,false);
         } else if(linkState==2) {
             drawCircle(1148,500,57,55,65,91);
             drawText("0",1135,477,35,218,224,239,false);
