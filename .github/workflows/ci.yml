@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang lld make git curl cmake
+        run: sudo apt-get update && sudo apt-get install -y clang lld make git curl
 
       - name: Set up .NET for patched PKG builder
         uses: actions/setup-dotnet@v4
@@ -46,38 +46,6 @@ jobs:
           test -s "$FONT_DIR/OFL.txt"
           file "$FONT_DIR/NotoSansArabic.ttf"
 
-      - name: Build HarfBuzz Arabic shaping engine for PS4
-        run: |
-          set -euo pipefail
-          git clone --filter=blob:none --no-checkout https://github.com/harfbuzz/harfbuzz.git "$RUNNER_TEMP/harfbuzz"
-          git -C "$RUNNER_TEMP/harfbuzz" checkout 3ef8709829a5884517ad91a97b32b9435b2f20d1
-          cmake -S "$RUNNER_TEMP/harfbuzz" -B "$RUNNER_TEMP/harfbuzz-build" \
-            -DCMAKE_SYSTEM_NAME=FreeBSD \
-            -DCMAKE_SYSTEM_PROCESSOR=x86_64 \
-            -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-            -DCMAKE_C_COMPILER=clang \
-            -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_C_FLAGS="--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -isysroot $OO_PS4_TOOLCHAIN -isystem $OO_PS4_TOOLCHAIN/include" \
-            -DCMAKE_CXX_FLAGS="--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -include stdlib.h -isysroot $OO_PS4_TOOLCHAIN -isystem $OO_PS4_TOOLCHAIN/include -isystem $OO_PS4_TOOLCHAIN/include/c++/v1" \
-            -DCMAKE_AR="$(command -v llvm-ar || command -v llvm-ar-14)" \
-            -DCMAKE_RANLIB="$(command -v llvm-ranlib || command -v llvm-ranlib-14)" \
-            -DCMAKE_INSTALL_PREFIX="$OO_PS4_TOOLCHAIN" \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DHB_BUILD_SUBSET=OFF \
-            -DHB_BUILD_RASTER=OFF \
-            -DHB_BUILD_VECTOR=OFF \
-            -DHB_BUILD_GPU=OFF \
-            -DHB_BUILD_UTILS=OFF \
-            -DHB_HAVE_CAIRO=OFF \
-            -DHB_HAVE_GLIB=OFF \
-            -DHB_HAVE_ICU=OFF \
-            -DHB_HAVE_FREETYPE=OFF \
-            -DHB_HAVE_GRAPHITE2=OFF
-          cmake --build "$RUNNER_TEMP/harfbuzz-build" --target harfbuzz -j2
-          cmake --install "$RUNNER_TEMP/harfbuzz-build"
-          test -s "$OO_PS4_TOOLCHAIN/lib/libharfbuzz.a"
-          test -s "$OO_PS4_TOOLCHAIN/include/harfbuzz/hb.h"
-
       - name: Build patched LibOrbisPkg to fix PlayGo chunk SHA sizing
         run: |
           git clone --filter=blob:none --no-checkout https://github.com/OpenOrbis/LibOrbisPkg.git "$RUNNER_TEMP/LibOrbisPkg"
@@ -92,9 +60,9 @@ jobs:
         run: |
           test -f "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
           test -f "$OO_PS4_TOOLCHAIN/include/proto-include.h"
+          test -s "$OO_PS4_TOOLCHAIN/samples/SDL2/assets/fonts/NotoSansArabic.ttf"
+          test -s "$OO_PS4_TOOLCHAIN/samples/SDL2/assets/fonts/OFL.txt"
           cp native/main.cpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/main.cpp"
-          sed -i 's/-lSDL2 -lSDL2_image/-lSDL2 -lSDL2_image -lharfbuzz/' "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
-          grep -q -- "-lharfbuzz" "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
           find "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2" -maxdepth 1 -type f -name '*.cpp' ! -name 'main.cpp' -delete
 
       - name: Compile ELF and create PKG
@@ -102,9 +70,10 @@ jobs:
         run: |
           set -euo pipefail
           make clean || true
-          make -j2 TITLE="Discord PS4" VERSION=1.01 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
+          make -j2 TITLE="Discord PS4" VERSION=1.02 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
           test -s IV0000-DISC00001_00-DISCORDPS4000000.pkg
           test -s eboot.bin
+          grep -Fq "assets/fonts/NotoSansArabic.ttf" pkg.gp4
           mkdir -p "$GITHUB_WORKSPACE/dist"
           cp IV0000-DISC00001_00-DISCORDPS4000000.pkg "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
           cp eboot.bin "$GITHUB_WORKSPACE/dist/eboot.bin"
