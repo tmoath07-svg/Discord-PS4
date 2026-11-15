@@ -297,7 +297,7 @@ static void drawNotificationToast() {
     drawText(toastBody.c_str(),x+36,y+58,17,205,210,220,false);
 }
 
-static void drawText(const char* text,int x,int y,int size,int r,int g,int b,bool rtl=false) {
+static void drawText(const char* text,int x,int y,int size,int r,int g,int b,bool rtl) {
     if (!arabicFace || !text) return;
     FT_Set_Char_Size(arabicFace,0,size*64,72,72);
     std::vector<uint32_t> cps=rtl?shapeArabic(text):decodeUtf8(text);
