@@ -1,22 +1,16 @@
 # Discord PS4
 
-An experimental, controller-first Discord-inspired web client targeting PlayStation 4 browsers/homebrew environments.
-
-## Status
-Early frontend prototype. This repository does **not** contain an official Discord client, private API access, a PS4 PKG, or a working Discord authentication flow yet.
-
-## Development
-Open `index.html` in a modern browser or serve the repository root with any static HTTP server.
-
-## Security and platform notes
-- Use Discord's documented OAuth2 and API capabilities only.
-- Never put a Discord client secret in browser code.
-- Do not automate normal user accounts (self-bots).
-- Voice, DMs, friends, and other restricted capabilities depend on Discord's current API permissions and approved application access.
-- A valid PS4 PKG requires a compatible PS4 SDK/toolchain and target-environment testing; GitHub Actions web checks alone cannot produce or certify one.
+Native PS4 homebrew interface prototype inspired by Discord's dark desktop layout.
 
 ## Current milestone
-- Controller-friendly Discord-style shell
-- Keyboard/gamepad navigation
-- Responsive 1080p layout
-- Static frontend checks in GitHub Actions
+- Native C++ / SDL2 rendering target.
+- 1080p layout with server rail, channel list, chat view and profile panel.
+- Basic D-pad / keyboard channel navigation.
+- Offline visual shell only: no real Discord login, messaging, voice, friends or DMs.
+- Not an official Discord application and not endorsed by Discord.
+
+## Build
+GitHub Actions downloads the pinned OpenOrbis v0.5.4 toolchain, verifies its SHA-256, compiles the native SDL2 entry point and attempts to package the application. Artifact: `discord-ps4-native-pkg`.
+
+## Limitations
+A successful CI build confirms package creation only, not installation or runtime compatibility on a physical PS4. This is an unsigned homebrew package intended for compatible homebrew environments. Real account features require an approved integration using Discord's documented OAuth2/API capabilities.
