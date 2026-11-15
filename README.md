@@ -3,8 +3,8 @@
 Unofficial native PlayStation 4 homebrew interface prototype built with OpenOrbis SDL2.
 
 ## Version 1.02
-- Discord-inspired login and personal server-list screens.
-- Uses the previously PS4-tested FreeType Arabic presentation-form renderer; the newer HarfBuzz renderer was removed after the PS4 build showed missing-glyph boxes.
+- The native app interface is English-only temporarily while Arabic glyph shaping and spacing are being repaired.
+- The Arabic font asset remains packaged for later retesting; no Arabic UI strings are rendered in this build.
 - The login page clearly indicates that no real QR code is issued yet.
 - The server page does not fabricate guilds or display demo server data.
 - D-pad left/right switches between Login and Servers; Enter or the controller confirm button displays the current login status.

@@ -135,27 +135,27 @@ static void draw() {
     rect(17,174,48,48,page==0?88:65,page==0?101:67,page==0?242:74);
     drawText("Q",31,184,27,255,255,255);
 
-    drawText("ديسكورد",385,29,29,242,243,245,true);
+    drawText("Discord",105,29,29,242,243,245);
     rect(82,78,330,1,37,39,43);
-    drawText("التنقل",385,112,22,148,155,164,true);
+    drawText("NAVIGATION",105,112,18,148,155,164);
     if(page==0) rect(96,145,300,52,64,66,73);
     if(page==1) rect(96,209,300,52,64,66,73);
-    drawText("تسجيل الدخول",375,157,23,page==0?255:190,page==0?255:192,page==0?255:200,true);
-    drawText("السيرفرات",375,221,23,page==1?255:190,page==1?255:192,page==1?255:200,true);
+    drawText("Login",112,157,23,page==0?255:190,page==0?255:192,page==0?255:200);
+    drawText("Servers",112,221,23,page==1?255:190,page==1?255:192,page==1?255:200);
 
     rect(82,990,330,90,35,36,40);
     rect(101,1010,42,42,88,101,242);
-    drawText("م",113,1014,27,255,255,255,true);
+    drawText("M",113,1014,27,255,255,255);
     drawText("Discord PS4",385,1009,22,242,243,245);
-    drawText("غير مربوط",385,1038,18,148,155,164,true);
+    drawText("Not connected",105,1038,16,148,155,164);
 
     rect(412,0,1508,78,49,51,56);
     rect(412,77,1508,1,37,39,43);
     if(page==0) {
-        drawText("تسجيل الدخول إلى Discord",1815,28,28,242,243,245,true);
+        drawText("Discord Login",470,28,28,242,243,245);
         rect(640,145,1000,790,43,45,49);
-        drawText("اربط حساب Discord الخاص بك",1510,190,34,242,243,245,true);
-        drawText("كل مستخدم يسجل بحسابه الشخصي",1510,248,23,185,187,194,true);
+        drawText("Connect your Discord account",700,190,30,242,243,245);
+        drawText("Each user connects their own account",700,248,22,185,187,194);
 
         // QR area is intentionally a neutral placeholder until the official
         // PlayStation Social SDK authorization service is enabled.
@@ -164,21 +164,21 @@ static void draw() {
         rect(1040,455,100,100,65,67,74);
         drawText("QR",1124,478,42,255,255,255,false);
 
-        drawText("سيظهر رمز QR الحقيقي بعد تفعيل ربط Discord",1510,735,22,196,199,206,true);
-        drawText("لا تمسح هذا المربع الآن؛ لم يصدر رمز تسجيل بعد",1510,780,20,220,170,90,true);
+        drawText("A real QR code will appear when account linking is enabled",700,735,20,196,199,206);
+        drawText("Do not scan this placeholder. No login code is active yet.",700,780,18,220,170,90);
         rect(790,840,700,2,65,67,74);
-        drawText("اضغط السهم الأيمن لعرض صفحة السيرفرات",1510,875,20,148,155,164,true);
-        if(loginNotice) drawText("تسجيل الدخول غير مفعّل في هذه النسخة",1510,925,21,240,170,90,true);
+        drawText("Press RIGHT to open the Servers page",700,875,20,148,155,164);
+        if(loginNotice) drawText("Discord sign-in is not enabled in this build",700,925,19,240,170,90);
     } else {
-        drawText("سيرفرات حسابك",1815,28,28,242,243,245,true);
+        drawText("Your Discord Servers",470,28,28,242,243,245);
         rect(470,140,1380,820,43,45,49);
-        drawText("السيرفرات",1785,180,30,242,243,245,true);
+        drawText("SERVERS",510,180,24,242,243,245);
         rect(510,225,1300,1,65,67,74);
         rect(1030,355,250,250,56,58,64);
         drawText("D",1172,420,76,255,255,255,false);
-        drawText("ما فيه سيرفرات للعرض حاليًا",1510,670,29,242,243,245,true);
-        drawText("سجّل دخولك بحساب Discord لعرض سيرفراتك",1510,725,22,185,187,194,true);
-        drawText("لن نعرض سيرفرات تجريبية أو بيانات وهمية",1510,775,20,148,155,164,true);
+        drawText("No servers to display yet",700,670,27,242,243,245);
+        drawText("Connect your Discord account to load your servers",700,725,20,185,187,194);
+        drawText("No demo servers or fabricated data will be shown",700,775,18,148,155,164);
     }
     SDL_RenderPresent(ren);
     SDL_UpdateWindowSurface(win);
