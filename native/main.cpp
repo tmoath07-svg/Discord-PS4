@@ -27,11 +27,12 @@ static int linkState=0;
 static std::string sessionId, pollToken, qrUrl, linkedUser, networkMessage;
 static int linkedGuildCount=0;
 static uint32_t lastPoll=0;
+static void rect(int x,int y,int w,int h,int r,int g,int b);
 
 static bool initNetwork() {
-    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET)<0) return false;
-    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_SSL)<0) return false;
-    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_HTTP)<0) return false;
+    if(static_cast<int32_t>(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET))<0) return false;
+    if(static_cast<int32_t>(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_SSL))<0) return false;
+    if(static_cast<int32_t>(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_HTTP))<0) return false;
     if(sceNetInit()<0) return false;
     netPoolId=sceNetPoolCreate("discord_ps4",16*1024,0);
     if(netPoolId<0) return false;
@@ -44,7 +45,7 @@ static bool initNetwork() {
 
 static void shutdownNetwork() {
     if(httpCtxId>=0) { sceHttpTerm(httpCtxId); httpCtxId=-1; }
-    if(sslCtxId>=0) { sceSslTerm(sslCtxId); sslCtxId=-1; }
+    if(sslCtxId>=0) { sceSslTerm(); sslCtxId=-1; }
     if(netPoolId>=0) { sceNetPoolDestroy(netPoolId); netPoolId=-1; }
 }
 
@@ -128,6 +129,7 @@ static int httpRequest(const char* method,const std::string& path,const std::str
 }
 
 static bool beginLink() {
+    linkState=0; qrUrl.clear(); linkedUser.clear(); linkedGuildCount=0;
     networkMessage.clear();
     if(!networkReady) { networkMessage="PS4 network service is unavailable."; return false; }
     if(std::string(DISCORD_WORKER_BASE_URL).find(".example.workers.dev")!=std::string::npos) {
