@@ -1,4 +1,4 @@
-#include <proto-include.h>
+#include <SDL2/SDL.h>
 static SDL_Window* win; static SDL_Renderer* ren; static int selected=0;
 static const char* names[]={"GENERAL","GAMING","MEDIA","VOICE"};
 static void box(int x,int y,int w,int h,int r,int g,int b){SDL_SetRenderDrawColor(ren,r,g,b,255);SDL_Rect q{x,y,w,h};SDL_RenderFillRect(ren,&q);}
