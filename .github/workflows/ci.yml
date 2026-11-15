@@ -1,8 +1,8 @@
-name: Discord PS4 CI
+name: Discord PS4 Native PKG Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, native-ps4-build]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,32 +11,118 @@ permissions:
   contents: read
 
 jobs:
-  frontend-check:
-    runs-on: ubuntu-latest
+  build-pkg:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
-      - name: Checkout
+      - name: Checkout project
         uses: actions/checkout@v4
-      - name: Setup Node.js
+
+      - name: Check OAuth backend source and tests
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate JavaScript
-        run: npm run check
-      - name: Validate required project files
+      - name: Validate OAuth backend
         run: |
-          test -s index.html
-          test -s src/styles.css
-          test -s src/app.js
-          test -s README.md
-      - name: Package web preview
+          node --check server/worker.js
+          node --test server/worker.test.mjs
+          node --check src/app.js
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang lld make git curl
+
+      - name: Set up .NET for patched PKG builder
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download and verify OpenOrbis toolchain v0.5.4
         run: |
-          mkdir -p dist
-          cp index.html dist/
-          cp -R src dist/src
-          cp README.md dist/
-      - name: Upload web preview
+          curl --fail --location --retry 3 https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz --output /tmp/openorbis.tar.gz
+          echo '3c7cd5bb593ca74fa1c13fd59f3938dc0fc07985167f7275063019e63abe4526  /tmp/openorbis.tar.gz' | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/openorbis"
+          tar -xzf /tmp/openorbis.tar.gz -C "$RUNNER_TEMP/openorbis" --strip-components=2
+          echo "OO_PS4_TOOLCHAIN=$RUNNER_TEMP/openorbis" >> "$GITHUB_ENV"
+
+      - name: Download pinned Noto Sans Arabic font and license
+        run: |
+          set -euo pipefail
+          FONT_DIR="$RUNNER_TEMP/openorbis/samples/SDL2/assets/fonts"
+          mkdir -p "$FONT_DIR"
+          FONT_BASE="https://raw.githubusercontent.com/google/fonts/cc39c4c2c304bc368c9b7c311ea2bcc6013299fe/ofl/notosansarabic"
+          curl --fail --location --retry 3 "$FONT_BASE/NotoSansArabic%5Bwdth%2Cwght%5D.ttf" --output "$FONT_DIR/NotoSansArabic.ttf"
+          curl --fail --location --retry 3 "$FONT_BASE/OFL.txt" --output "$FONT_DIR/OFL.txt"
+          test -s "$FONT_DIR/NotoSansArabic.ttf"
+          test -s "$FONT_DIR/OFL.txt"
+          file "$FONT_DIR/NotoSansArabic.ttf"
+
+      - name: Build patched LibOrbisPkg to fix PlayGo chunk SHA sizing
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/OpenOrbis/LibOrbisPkg.git "$RUNNER_TEMP/LibOrbisPkg"
+          git -C "$RUNNER_TEMP/LibOrbisPkg" checkout 92a4e7f8e5914cb06b52ba3ae6b0675da438a051
+          git -C "$RUNNER_TEMP/LibOrbisPkg" apply "$GITHUB_WORKSPACE/.github/patches/liborbispkg-chunk-sha-size.patch"
+          dotnet publish "$RUNNER_TEMP/LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$RUNNER_TEMP/patched-pkgtool"
+          test -s "$RUNNER_TEMP/patched-pkgtool/PkgTool.Core"
+          install -m 0755 "$RUNNER_TEMP/patched-pkgtool/PkgTool.Core" "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core"
+          "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core" 2>&1 | head -n 20 || true
+
+      - name: Configure Discord Worker URL
+        env:
+          DISCORD_WORKER_BASE_URL: ${{ secrets.DISCORD_WORKER_BASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -n "${DISCORD_WORKER_BASE_URL:-}" ]; then
+            python3 - <<'PY'
+          import os
+          from pathlib import Path
+          p = Path("native/main.cpp")
+          s = p.read_text()
+          url = os.environ["DISCORD_WORKER_BASE_URL"].rstrip("/")
+          if not url.startswith("https://") or "/" in url[len("https://"):]:
+              raise SystemExit("DISCORD_WORKER_BASE_URL must be an HTTPS origin without a path")
+          old = "https://discord-ps4-link.example.workers.dev"
+          if old not in s:
+              raise SystemExit("Worker URL placeholder not found")
+          p.write_text(s.replace(old, url))
+          PY
+          fi
+
+      - name: Install native interface into official SDL2 sample layout
+        run: |
+          test -f "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
+          test -f "$OO_PS4_TOOLCHAIN/include/proto-include.h"
+          test -s "$OO_PS4_TOOLCHAIN/samples/SDL2/assets/fonts/NotoSansArabic.ttf"
+          test -s "$OO_PS4_TOOLCHAIN/samples/SDL2/assets/fonts/OFL.txt"
+          cp native/main.cpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/main.cpp"
+          cp native/qrcodegen.cpp native/qrcodegen.hpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/"
+          sed -i 's/-lSceSysmodule /-lSceSysmodule -lSceNet -lSceSsl -lSceHttp /' "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
+          find "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2" -maxdepth 1 -type f -name '*.cpp' ! -name 'main.cpp' ! -name 'qrcodegen.cpp' -delete
+
+      - name: Compile ELF and create PKG
+        working-directory: ${{ runner.temp }}/openorbis/samples/SDL2
+        run: |
+          set -euo pipefail
+          make clean || true
+          make -j2 TITLE="Discord PS4" VERSION=1.10 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
+          test -s IV0000-DISC00001_00-DISCORDPS4000000.pkg
+          test -s eboot.bin
+          grep -Fq "assets/fonts/NotoSansArabic.ttf" pkg.gp4
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          cp IV0000-DISC00001_00-DISCORDPS4000000.pkg "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
+          cp eboot.bin "$GITHUB_WORKSPACE/dist/eboot.bin"
+
+      - name: Validate package
+        run: |
+          set -euo pipefail
+          test -s dist/Discord-PS4.pkg
+          test -s dist/eboot.bin
+          "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core" pkg_validate dist/Discord-PS4.pkg
+          file dist/Discord-PS4.pkg dist/eboot.bin
+          sha256sum dist/Discord-PS4.pkg dist/eboot.bin > dist/SHA256SUMS.txt
+
+      - name: Upload PKG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: discord-ps4-web-preview
+          name: discord-ps4-native-pkg
           path: dist/
           if-no-files-found: error

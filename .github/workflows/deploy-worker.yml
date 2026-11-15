@@ -1,0 +1,54 @@
+name: Deploy Discord OAuth Worker
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID }}
+      DISCORD_CLIENT_ID: ${{ secrets.DISCORD_CLIENT_ID }}
+      DISCORD_CLIENT_SECRET: ${{ secrets.DISCORD_CLIENT_SECRET }}
+      DISCORD_REDIRECT_URI: ${{ secrets.DISCORD_REDIRECT_URI }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        working-directory: server
+        run: |
+          set -euo pipefail
+          for key in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_KV_NAMESPACE_ID DISCORD_CLIENT_ID DISCORD_CLIENT_SECRET DISCORD_REDIRECT_URI; do
+            if [ -z "${!key:-}" ]; then echo "Missing GitHub Actions secret: $key"; exit 1; fi
+          done
+          [[ "$CLOUDFLARE_KV_NAMESPACE_ID" =~ ^[a-f0-9]{32}$ ]]
+          node -e 'const fs=require("node:fs");const p="wrangler.toml";const s=fs.readFileSync(p,"utf8");if(!s.includes("REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID"))throw new Error("KV placeholder not found");fs.writeFileSync(p,s.replace("REPLACE_WITH_CLOUDFLARE_KV_NAMESPACE_ID",process.env.CLOUDFLARE_KV_NAMESPACE_ID));'
+          node -e 'const fs=require("node:fs");const k=["DISCORD_CLIENT_ID","DISCORD_CLIENT_SECRET","DISCORD_REDIRECT_URI"];const v=Object.fromEntries(k.map(x=>[x,process.env[x]]));fs.writeFileSync("/tmp/discord-ps4-worker-secrets.json",JSON.stringify(v),{mode:0o600});'
+          node --check worker.js
+          node --test worker.test.mjs
+
+      - name: Install Wrangler
+        run: npm install --global wrangler@4
+
+      - name: Bootstrap Worker
+        run: wrangler deploy --config server/wrangler.toml
+
+      - name: Create persistent encryption key if missing
+        run: |
+          set -euo pipefail
+          if ! wrangler secret list --config server/wrangler.toml | grep -q TOKEN_ENCRYPTION_KEY; then
+            node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))' | wrangler secret put TOKEN_ENCRYPTION_KEY --config server/wrangler.toml
+          fi
+
+      - name: Upload OAuth secrets
+        run: wrangler secret bulk /tmp/discord-ps4-worker-secrets.json --config server/wrangler.toml
+
+      - name: Deploy Worker
+        run: wrangler deploy --config server/wrangler.toml
