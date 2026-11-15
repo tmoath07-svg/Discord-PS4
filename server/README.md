@@ -37,7 +37,7 @@ Server-side Discord OAuth2 Authorization Code + PKCE. Each PS4 installation star
 
 ### GitHub Actions secrets required
 
-- `CLOUDFLARE_API_TOKEN` — scoped to the account with Workers Scripts edit and Workers KV access needed for deployment.
+- `CLOUDFLARE_API_TOKEN` — for the first deployment, use a token with Workers product-level Admin so Wrangler can create the Worker. After the Worker exists, a Workers Editor token is sufficient for later deployments. The KV namespace is created separately in the dashboard; deploying an existing KV binding does not require direct KV data access.
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_KV_NAMESPACE_ID`
 - `DISCORD_CLIENT_ID`
@@ -46,7 +46,7 @@ Server-side Discord OAuth2 Authorization Code + PKCE. Each PS4 installation star
 - `DISCORD_WORKER_BASE_URL` — the Worker origin, such as `https://discord-ps4-link.<YOUR-WORKERS-SUBDOMAIN>.workers.dev` (used by the native PKG build).
 - `TOKEN_ENCRYPTION_KEY`
 
-Never put any of these values in source code, issues, chat messages, or the PS4 package. Do not share Discord passwords or personal user tokens.
+Never put any of these values in source code, issues, chat messages, or the PS4 package. Do not share Discord passwords or personal user tokens. The Cloudflare API token and Discord Client Secret should be entered only into the GitHub Actions Secrets UI.
 
 ## Important storage behavior
 
