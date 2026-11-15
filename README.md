@@ -3,7 +3,7 @@
 Native PlayStation 4 homebrew interface prototype using the OpenOrbis SDL2 sample.
 
 ## Current build
-- C++ / SDL2 native application.
+- C++ / SDL2 native application with FreeType font rendering and HarfBuzz OpenType shaping for Arabic glyph positioning and ligatures.
 - 1920x1080 Discord-inspired dark layout.
 - Server rail, channel list, chat panel and basic D-pad navigation.
 - Offline interface only. It does not authenticate to Discord or send/receive real messages.
