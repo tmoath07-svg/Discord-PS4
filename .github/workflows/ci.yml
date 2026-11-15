@@ -58,7 +58,7 @@ jobs:
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_C_FLAGS="--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -isysroot $OO_PS4_TOOLCHAIN -isystem $OO_PS4_TOOLCHAIN/include" \
-            -DCMAKE_CXX_FLAGS="--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -isysroot $OO_PS4_TOOLCHAIN -isystem $OO_PS4_TOOLCHAIN/include -isystem $OO_PS4_TOOLCHAIN/include/c++/v1" \
+            -DCMAKE_CXX_FLAGS="--target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -include stdlib.h -isysroot $OO_PS4_TOOLCHAIN -isystem $OO_PS4_TOOLCHAIN/include -isystem $OO_PS4_TOOLCHAIN/include/c++/v1" \
             -DCMAKE_AR="$(command -v llvm-ar || command -v llvm-ar-14)" \
             -DCMAKE_RANLIB="$(command -v llvm-ranlib || command -v llvm-ranlib-14)" \
             -DCMAKE_INSTALL_PREFIX="$OO_PS4_TOOLCHAIN" \
