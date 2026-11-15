@@ -19,7 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang lld make git
+        run: sudo apt-get update && sudo apt-get install -y clang lld make git curl
 
       - name: Set up .NET for patched PKG builder
         uses: actions/setup-dotnet@v4
@@ -33,6 +33,18 @@ jobs:
           mkdir -p "$RUNNER_TEMP/openorbis"
           tar -xzf /tmp/openorbis.tar.gz -C "$RUNNER_TEMP/openorbis" --strip-components=2
           echo "OO_PS4_TOOLCHAIN=$RUNNER_TEMP/openorbis" >> "$GITHUB_ENV"
+
+      - name: Download pinned Noto Sans Arabic font and license
+        run: |
+          set -euo pipefail
+          FONT_DIR="$RUNNER_TEMP/openorbis/samples/SDL2/assets/fonts"
+          mkdir -p "$FONT_DIR"
+          FONT_BASE="https://raw.githubusercontent.com/google/fonts/cc39c4c2c304bc368c9b7c311ea2bcc6013299fe/ofl/notosansarabic"
+          curl --fail --location --retry 3 "$FONT_BASE/NotoSansArabic%5Bwdth%2Cwght%5D.ttf" --output "$FONT_DIR/NotoSansArabic.ttf"
+          curl --fail --location --retry 3 "$FONT_BASE/OFL.txt" --output "$FONT_DIR/OFL.txt"
+          test -s "$FONT_DIR/NotoSansArabic.ttf"
+          test -s "$FONT_DIR/OFL.txt"
+          file "$FONT_DIR/NotoSansArabic.ttf"
 
       - name: Build patched LibOrbisPkg to fix PlayGo chunk SHA sizing
         run: |
@@ -52,11 +64,11 @@ jobs:
           find "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2" -maxdepth 1 -type f -name '*.cpp' ! -name 'main.cpp' -delete
 
       - name: Compile ELF and create PKG
-        working-directory: ${{ runner.temp }}/openorbis/samples/SDL2
+        working-directory: \${{ runner.temp }}/openorbis/samples/SDL2
         run: |
           set -euo pipefail
           make clean || true
-          make -j2 TITLE="Discord PS4" VERSION=1.00 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
+          make -j2 TITLE="Discord PS4" VERSION=1.01 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
           test -s IV0000-DISC00001_00-DISCORDPS4000000.pkg
           test -s eboot.bin
           mkdir -p "$GITHUB_WORKSPACE/dist"
