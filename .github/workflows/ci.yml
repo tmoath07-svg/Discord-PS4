@@ -19,34 +19,36 @@ jobs:
         uses: actions/checkout@v4
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang lld make
-      - name: Download pinned OpenOrbis toolchain
+      - name: Download and verify OpenOrbis toolchain v0.5.4
         run: |
           curl --fail --location --retry 3 https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz --output /tmp/openorbis.tar.gz
           echo '3c7cd5bb593ca74fa1c13fd59f3938dc0fc07985167f7275063019e63abe4526  /tmp/openorbis.tar.gz' | sha256sum --check
           mkdir -p "$RUNNER_TEMP/openorbis"
           tar -xzf /tmp/openorbis.tar.gz -C "$RUNNER_TEMP/openorbis" --strip-components=2
           echo "OO_PS4_TOOLCHAIN=$RUNNER_TEMP/openorbis" >> "$GITHUB_ENV"
-      - name: Replace SDL2 sample entry point with native Discord UI
+      - name: Install native interface into official SDL2 sample layout
         run: |
-          test -d "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2"
+          test -f "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
+          test -f "$OO_PS4_TOOLCHAIN/include/proto-include.h"
           cp native/main.cpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/main.cpp"
-      - name: Compile and package
+          find "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2" -maxdepth 1 -type f -name '*.cpp' ! -name 'main.cpp' -delete
+      - name: Compile ELF and create PKG
         working-directory: ${{ runner.temp }}/openorbis/samples/SDL2
         run: |
           make clean || true
           make -j2
-          set -- ./*.pkg
-          test -s "$1"
+          test -s BREW00090.pkg
+          test -s eboot.bin
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp "$1" "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
+          cp BREW00090.pkg "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
           cp eboot.bin "$GITHUB_WORKSPACE/dist/eboot.bin"
-      - name: Validate output
+      - name: Validate package
         run: |
           test -s dist/Discord-PS4.pkg
           test -s dist/eboot.bin
           file dist/Discord-PS4.pkg dist/eboot.bin
           sha256sum dist/Discord-PS4.pkg dist/eboot.bin > dist/SHA256SUMS.txt
-      - name: Upload native PS4 package
+      - name: Upload PKG artifact
         uses: actions/upload-artifact@v4
         with:
           name: discord-ps4-native-pkg
