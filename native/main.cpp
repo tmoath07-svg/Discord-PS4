@@ -49,28 +49,28 @@ static void shutdownNetwork() {
 }
 
 static std::string jsonString(const std::string& json,const std::string& key) {
-    const std::string marker="\\\""+key+"\\\"";
+    const std::string marker="\"" + key + "\"";
     size_t p=json.find(marker);
     if(p==std::string::npos) return "";
     p=json.find(':',p+marker.size());
     if(p==std::string::npos) return "";
-    p=json.find_first_not_of(" \\t\\r\\n",p+1);
-    if(p==std::string::npos || json[p]!='\\\"') return "";
+    p=json.find_first_not_of(" \t\r\n",p+1);
+    if(p==std::string::npos || json[p]!='"') return "";
     ++p;
     std::string out;
     while(p<json.size()) {
         char c=json[p++];
-        if(c=='\\\"') break;
-        if(c=='\\\\' && p<json.size()) {
+        if(c=='"') break;
+        if(c=='\\' && p<json.size()) {
             char e=json[p++];
-            if(e=='n') out+='\\n'; else if(e=='r') out+='\\r'; else if(e=='t') out+='\\t'; else out+=e;
+            if(e=='n') out+='\n'; else if(e=='r') out+='\r'; else if(e=='t') out+='\t'; else out+=e;
         } else out+=c;
     }
     return out;
 }
 
 static int jsonArrayObjectCount(const std::string& json,const std::string& key) {
-    size_t p=json.find("\\\""+key+"\\\"");
+    size_t p=json.find("\""+key+"\"");
     if(p==std::string::npos) return 0;
     p=json.find('[',p);
     if(p==std::string::npos) return 0;
@@ -78,8 +78,8 @@ static int jsonArrayObjectCount(const std::string& json,const std::string& key) 
     bool quoted=false,escape=false;
     for(++p;p<json.size();++p) {
         char c=json[p];
-        if(quoted) { if(escape) escape=false; else if(c=='\\\\') escape=true; else if(c=='\\\"') quoted=false; continue; }
-        if(c=='\\\"') quoted=true;
+        if(quoted) { if(escape) escape=false; else if(c=='\\') escape=true; else if(c=='"') quoted=false; continue; }
+        if(c=='"') quoted=true;
         else if(c=='{') { if(depth==0) ++count; ++depth; }
         else if(c=='}') { if(depth>0) --depth; }
         else if(c==']' && depth==0) break;
