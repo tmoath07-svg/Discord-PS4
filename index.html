@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1e1f22">
+  <meta name="description" content="Controller-first Discord-style client prototype for PlayStation 4">
+  <title>Discord PS4</title>
+  <link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="servers" aria-label="Servers">
+      <button class="server home active" data-focus="home" aria-label="Home">D</button>
+      <div class="server-separator"></div>
+      <button class="server" data-focus="server" aria-label="Gaming Hub">G</button>
+      <button class="server" data-focus="server" aria-label="Friends">✦</button>
+      <button class="server add" aria-label="Add server">+</button>
+    </aside>
+    <aside class="channels">
+      <header class="workspace"><span>Gaming Hub</span><span class="chevron">⌄</span></header>
+      <div class="section-label">TEXT CHANNELS <span>＋</span></div>
+      <button class="channel selected" data-channel="general"># <span>general</span></button>
+      <button class="channel" data-channel="gaming"># <span>gaming</span></button>
+      <button class="channel" data-channel="media"># <span>media</span></button>
+      <div class="section-label friends-label">DIRECT MESSAGES <span>＋</span></div>
+      <div class="empty-hint">Your conversations will appear here.</div>
+      <footer class="profile">
+        <div class="avatar">M</div><div class="profile-text"><strong>Player</strong><small>Local preview</small></div>
+        <button class="icon-button" aria-label="Settings" data-action="settings">⚙</button>
+      </footer>
+    </aside>
+    <main class="chat">
+      <header class="topbar"><div class="channel-title"><span class="hash">#</span><strong id="channel-name">general</strong></div><div class="top-actions"><button class="icon-button" aria-label="Notifications">♧</button><button class="icon-button" aria-label="Help">?</button></div></header>
+      <section class="messages" id="messages" aria-live="polite">
+        <div class="welcome"><div class="welcome-mark">#</div><h1>Welcome to #general</h1><p>This is the beginning of the channel.</p></div>
+        <article class="message"><div class="message-avatar">D</div><div><div class="message-meta"><strong>Discord PS4</strong><time>Today</time></div><p>Welcome! This is an early interface preview. Connect an approved Discord application to enable supported account features.</p></div></article>
+      </section>
+      <form class="composer" id="composer"><button type="button" class="attach" aria-label="Attach">＋</button><input id="message-input" autocomplete="off" placeholder="Message #general" aria-label="Message"><button class="send" type="submit">Send</button></form>
+      <div class="status" id="status" role="status">Offline preview · Not connected to Discord</div>
+    </main>
+  </div>
+  <script src="src/app.js"></script>
+</body>
+</html>
