@@ -1,16 +1,16 @@
 # Discord PS4
 
-Native PS4 homebrew interface prototype inspired by Discord's dark desktop layout.
+Native PlayStation 4 homebrew interface prototype using the OpenOrbis SDL2 sample.
 
-## Current milestone
-- Native C++ / SDL2 rendering target.
-- 1080p layout with server rail, channel list, chat view and profile panel.
-- Basic D-pad / keyboard channel navigation.
-- Offline visual shell only: no real Discord login, messaging, voice, friends or DMs.
-- Not an official Discord application and not endorsed by Discord.
+## Current build
+- C++ / SDL2 native application.
+- 1920x1080 Discord-inspired dark layout.
+- Server rail, channel list, chat panel and basic D-pad navigation.
+- Offline interface only. It does not authenticate to Discord or send/receive real messages.
+- Unofficial project, not affiliated with Discord.
 
-## Build
-GitHub Actions downloads the pinned OpenOrbis v0.5.4 toolchain, verifies its SHA-256, compiles the native SDL2 entry point and attempts to package the application. Artifact: `discord-ps4-native-pkg`.
+## PKG build
+GitHub Actions downloads OpenOrbis v0.5.4, verifies the published SHA-256 digest, replaces the SDL2 sample entry point, compiles the native ELF and creates a real package using the sample Makefile's create-fself, create-gp4 and PkgTool steps. The workflow uploads `Discord-PS4.pkg` as artifact `discord-ps4-native-pkg`.
 
 ## Limitations
-A successful CI build confirms package creation only, not installation or runtime compatibility on a physical PS4. This is an unsigned homebrew package intended for compatible homebrew environments. Real account features require an approved integration using Discord's documented OAuth2/API capabilities.
+CI success proves the PKG was produced, not that it installs or runs on a physical PS4. This is a homebrew package for compatible homebrew environments, not an official Sony-signed application. Discord online features are not implemented.
