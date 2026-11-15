@@ -9,7 +9,7 @@
 #include <orbis/Http.h>
 #include <orbis/Net.h>
 #include <orbis/Ssl.h>
-#include <qrcodegen.hpp>
+#include "qrcodegen.hpp"
 
 std::stringstream debugLogStream;
 static SDL_Window* win=nullptr;
