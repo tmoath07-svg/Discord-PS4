@@ -6,6 +6,8 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <sys/stat.h>
 #include <cmath>
 #include <orbis/Http.h>
 #include <orbis/Net.h>
@@ -203,10 +205,72 @@ static void pollLink() {
         linkState=2;
         networkMessage="Discord account linked successfully.";
         showToast("Discord connected",linkedUser.empty()?"Your account is now linked.":("Welcome, "+linkedUser));
+        if(!saveSession()) networkMessage="Linked, but the PS4 could not save this session locally.";
     } else if(state=="denied" || state=="error" || state=="reauth_required") {
         linkState=3;
         networkMessage="Discord linking did not complete. Start again.";
     }
+}
+
+
+static const char* SESSION_DIR="/data/discord-ps4";
+static const char* SESSION_FILE="/data/discord-ps4/session.dat";
+
+static void clearSavedSession() {
+    std::remove(SESSION_FILE);
+}
+static bool saveSession() {
+    if(sessionId.empty() || pollToken.empty()) return false;
+    mkdir(SESSION_DIR,0700);
+    std::ofstream out(SESSION_FILE,std::ios::binary|std::ios::trunc);
+    if(!out) return false;
+    out<<sessionId<<"\n"<<pollToken<<"\n";
+    out.close();
+    chmod(SESSION_DIR,0700);
+    chmod(SESSION_FILE,0600);
+    return out.good();
+}
+static bool restoreSession() {
+    if(!networkReady) return false;
+    std::ifstream in(SESSION_FILE,std::ios::binary);
+    if(!in) return false;
+    std::getline(in,sessionId);
+    std::getline(in,pollToken);
+    if(sessionId.empty() || pollToken.empty()) {
+        clearSavedSession();
+        sessionId.clear(); pollToken.clear();
+        return false;
+    }
+    std::string response;
+    int status=httpRequest("GET","/api/link/status/"+sessionId,"",pollToken,response);
+    if(status==401 || status==404) {
+        clearSavedSession();
+        sessionId.clear(); pollToken.clear();
+        return false;
+    }
+    if(status!=200 || jsonString(response,"status")!="linked") return false;
+    linkedUser=jsonString(response,"global_name");
+    if(linkedUser.empty()) linkedUser=jsonString(response,"username");
+    linkedGuildNames=parseGuildNames(response);
+    linkedGuildCount=static_cast<int>(linkedGuildNames.size());
+    linkState=2;
+    // Refresh server-side OAuth credentials and renew the 30-day linked session.
+    std::string refreshed;
+    const int refreshStatus=httpRequest("POST","/api/link/refresh/"+sessionId,"{}",pollToken,refreshed);
+    if(refreshStatus==200 && jsonString(refreshed,"status")=="linked") {
+        linkedUser=jsonString(refreshed,"global_name");
+        if(linkedUser.empty()) linkedUser=jsonString(refreshed,"username");
+        linkedGuildNames=parseGuildNames(refreshed);
+        linkedGuildCount=static_cast<int>(linkedGuildNames.size());
+    } else if(refreshStatus==401 || refreshStatus==404) {
+        clearSavedSession();
+        sessionId.clear(); pollToken.clear();
+        linkState=0;
+        return false;
+    }
+    networkMessage="Previous Discord session restored.";
+    showToast("Welcome back",linkedUser.empty()?"Your Discord account is connected.":linkedUser);
+    return true;
 }
 
 static void drawQr(const std::string& data,int x,int y,int boxSize) {
@@ -504,6 +568,7 @@ int main() {
     if(!ren) return 7;
     SDL_SetRenderDrawBlendMode(ren,SDL_BLENDMODE_BLEND);
     SDL_Joystick* pad=SDL_NumJoysticks()>0?SDL_JoystickOpen(0):nullptr;
+    if(networkReady) restoreSession();
     bool run=true;
     draw();
     while(run) {
