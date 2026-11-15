@@ -1,6 +1,5 @@
 #include <SDL2/SDL.h>
-#include <ft2build.h>
-#include FT_FREETYPE_H
+#include <proto-include.h>
 #include <orbis/Sysmodule.h>
 #include <sstream>
 #include <string>
@@ -90,20 +89,20 @@ static void rect(int x,int y,int w,int h,int r,int g,int b) {
 
 static void drawText(const char* text,int x,int y,int size,int r,int g,int b,bool rtl=false) {
     if (!arabicFace || !text) return;
-    FT_Set_Pixel_Sizes(arabicFace,0,size);
+    FT_Set_Char_Size(arabicFace,0,size*64,72,72);
     std::vector<uint32_t> cps=rtl?shapeArabic(text):decodeUtf8(text);
     int width=0;
     for (uint32_t cp:cps) {
         FT_UInt gi=FT_Get_Char_Index(arabicFace,cp);
-        if (FT_Load_Glyph(arabicFace,gi,FT_LOAD_DEFAULT)==0) width+=static_cast<int>(arabicFace->glyph->advance.x>>6);
+        if (FT_Load_Glyph(arabicFace,gi,0)==0) width+=static_cast<int>(arabicFace->glyph->advance.x>>6);
     }
     int pen=rtl?x-width:x;
     int baseline=y+static_cast<int>(arabicFace->size->metrics.ascender>>6);
     for (uint32_t cp:cps) {
         FT_UInt gi=FT_Get_Char_Index(arabicFace,cp);
-        if (FT_Load_Glyph(arabicFace,gi,FT_LOAD_DEFAULT)!=0) continue;
+        if (FT_Load_Glyph(arabicFace,gi,0)!=0) continue;
         FT_GlyphSlot slot=arabicFace->glyph;
-        if (FT_Render_Glyph(slot,FT_RENDER_MODE_NORMAL)==0) {
+        if (FT_Render_Glyph(slot,ft_render_mode_normal)==0) {
             const FT_Bitmap& bm=slot->bitmap;
             for (unsigned int row=0;row<bm.rows;++row) {
                 for (unsigned int col=0;col<bm.width;++col) {
