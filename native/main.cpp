@@ -6,6 +6,10 @@
 #include <vector>
 #include <cstdint>
 #include <cstring>
+#include <orbis/Http.h>
+#include <orbis/Net.h>
+#include <orbis/Ssl.h>
+#include <qrcodegen.hpp>
 
 std::stringstream debugLogStream;
 static SDL_Window* win=nullptr;
@@ -14,7 +18,168 @@ static FT_Library ftLib=nullptr;
 static FT_Face arabicFace=nullptr;
 static int selected=0;
 static int page=0;
-static bool loginNotice=false;
+#ifndef DISCORD_WORKER_BASE_URL
+#define DISCORD_WORKER_BASE_URL "https://discord-ps4-link.example.workers.dev"
+#endif
+static int netPoolId=-1, sslCtxId=-1, httpCtxId=-1;
+static bool networkReady=false;
+static int linkState=0;
+static std::string sessionId, pollToken, qrUrl, linkedUser, networkMessage;
+static int linkedGuildCount=0;
+static uint32_t lastPoll=0;
+
+static bool initNetwork() {
+    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_NET)<0) return false;
+    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_SSL)<0) return false;
+    if(sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_HTTP)<0) return false;
+    if(sceNetInit()<0) return false;
+    netPoolId=sceNetPoolCreate("discord_ps4",16*1024,0);
+    if(netPoolId<0) return false;
+    sslCtxId=sceSslInit(304*1024);
+    if(sslCtxId<0) return false;
+    httpCtxId=sceHttpInit(netPoolId,sslCtxId,64*1024);
+    if(httpCtxId<0) return false;
+    return true;
+}
+
+static void shutdownNetwork() {
+    if(httpCtxId>=0) { sceHttpTerm(httpCtxId); httpCtxId=-1; }
+    if(sslCtxId>=0) { sceSslTerm(sslCtxId); sslCtxId=-1; }
+    if(netPoolId>=0) { sceNetPoolDestroy(netPoolId); netPoolId=-1; }
+}
+
+static std::string jsonString(const std::string& json,const std::string& key) {
+    const std::string marker="\\\""+key+"\\\"";
+    size_t p=json.find(marker);
+    if(p==std::string::npos) return "";
+    p=json.find(':',p+marker.size());
+    if(p==std::string::npos) return "";
+    p=json.find_first_not_of(" \\t\\r\\n",p+1);
+    if(p==std::string::npos || json[p]!='\\\"') return "";
+    ++p;
+    std::string out;
+    while(p<json.size()) {
+        char c=json[p++];
+        if(c=='\\\"') break;
+        if(c=='\\\\' && p<json.size()) {
+            char e=json[p++];
+            if(e=='n') out+='\\n'; else if(e=='r') out+='\\r'; else if(e=='t') out+='\\t'; else out+=e;
+        } else out+=c;
+    }
+    return out;
+}
+
+static int jsonArrayObjectCount(const std::string& json,const std::string& key) {
+    size_t p=json.find("\\\""+key+"\\\"");
+    if(p==std::string::npos) return 0;
+    p=json.find('[',p);
+    if(p==std::string::npos) return 0;
+    int depth=0,count=0;
+    bool quoted=false,escape=false;
+    for(++p;p<json.size();++p) {
+        char c=json[p];
+        if(quoted) { if(escape) escape=false; else if(c=='\\\\') escape=true; else if(c=='\\\"') quoted=false; continue; }
+        if(c=='\\\"') quoted=true;
+        else if(c=='{') { if(depth==0) ++count; ++depth; }
+        else if(c=='}') { if(depth>0) --depth; }
+        else if(c==']' && depth==0) break;
+    }
+    return count;
+}
+
+static int httpRequest(const char* method,const std::string& path,const std::string& body,const std::string& bearer,std::string& response) {
+    if(!networkReady) return -1;
+    std::string base=DISCORD_WORKER_BASE_URL;
+    while(!base.empty() && base.back()=='/') base.pop_back();
+    if(base.find(".example.workers.dev")!=std::string::npos) return -2;
+    const std::string url=base+path;
+    int tpl=sceHttpCreateTemplate(httpCtxId,"Discord-PS4/1.0",ORBIS_HTTP_VERSION_1_1,0);
+    if(tpl<0) return tpl;
+    sceHttpSetConnectTimeOut(tpl,10000000);
+    sceHttpSetSendTimeOut(tpl,10000000);
+    int conn=sceHttpCreateConnectionWithURL(tpl,url.c_str(),true);
+    if(conn<0) { sceHttpDeleteTemplate(tpl); return conn; }
+    const int verb=(strcmp(method,"POST")==0)?ORBIS_METHOD_POST:ORBIS_METHOD_GET;
+    int req=sceHttpCreateRequestWithURL(conn,verb,url.c_str(),body.size());
+    if(req<0) { sceHttpDeleteConnection(conn); sceHttpDeleteTemplate(tpl); return req; }
+    sceHttpAddRequestHeader(req,"Accept","application/json",0);
+    if(verb==ORBIS_METHOD_POST) sceHttpAddRequestHeader(req,"Content-Type","application/json",0);
+    if(!bearer.empty()) {
+        const std::string auth="Bearer "+bearer;
+        sceHttpAddRequestHeader(req,"Authorization",auth.c_str(),0);
+    }
+    int ret=sceHttpSendRequest(req,body.empty()?nullptr:body.data(),body.size());
+    int status=0;
+    if(ret>=0) ret=sceHttpGetStatusCode(req,&status);
+    if(ret>=0) {
+        char buffer[2048];
+        int bytes=0;
+        size_t total=0;
+        while((bytes=sceHttpReadData(req,buffer,sizeof(buffer)))>0 && total<65536) {
+            response.append(buffer,static_cast<size_t>(bytes));
+            total+=static_cast<size_t>(bytes);
+        }
+        if(bytes<0) ret=bytes;
+    }
+    sceHttpDeleteRequest(req);
+    sceHttpDeleteConnection(conn);
+    sceHttpDeleteTemplate(tpl);
+    return ret<0?ret:status;
+}
+
+static bool beginLink() {
+    networkMessage.clear();
+    if(!networkReady) { networkMessage="PS4 network service is unavailable."; return false; }
+    if(std::string(DISCORD_WORKER_BASE_URL).find(".example.workers.dev")!=std::string::npos) {
+        networkMessage="Worker URL is not configured in the build yet."; return false;
+    }
+    std::string response;
+    int status=httpRequest("POST","/api/link/start","{}","",response);
+    if(status!=201) { networkMessage="Could not start a link session. Check the Worker deployment."; return false; }
+    sessionId=jsonString(response,"session_id");
+    pollToken=jsonString(response,"poll_token");
+    qrUrl=jsonString(response,"qr_url");
+    if(sessionId.empty()||pollToken.empty()||qrUrl.empty()) {
+        networkMessage="The Worker returned an incomplete link session."; return false;
+    }
+    linkState=1;
+    networkMessage="Scan this QR with your phone, then approve on Discord.";
+    lastPoll=SDL_GetTicks();
+    return true;
+}
+
+static void pollLink() {
+    if(linkState!=1 || sessionId.empty() || pollToken.empty()) return;
+    std::string response;
+    const std::string path="/api/link/status/"+sessionId;
+    int status=httpRequest("GET",path,"",pollToken,response);
+    if(status!=200) return;
+    const std::string state=jsonString(response,"status");
+    if(state=="linked") {
+        linkedUser=jsonString(response,"global_name");
+        if(linkedUser.empty()) linkedUser=jsonString(response,"username");
+        linkedGuildCount=jsonArrayObjectCount(response,"guilds");
+        linkState=2;
+        networkMessage="Discord account linked successfully.";
+    } else if(state=="denied" || state=="error" || state=="reauth_required") {
+        linkState=3;
+        networkMessage="Discord linking did not complete. Start again.";
+    }
+}
+
+static void drawQr(const std::string& data,int x,int y,int boxSize) {
+    const qrcodegen::QrCode qr=qrcodegen::QrCode::encodeText(data.c_str(),qrcodegen::QrCode::Ecc::MEDIUM);
+    const int size=qr.getSize(),quiet=4;
+    const int scale=boxSize/(size+quiet*2);
+    const int actual=scale*(size+quiet*2);
+    const int ox=x+(boxSize-actual)/2,oy=y+(boxSize-actual)/2;
+    rect(x,y,boxSize,boxSize,255,255,255);
+    for(int yy=0;yy<size+quiet*2;++yy) for(int xx=0;xx<size+quiet*2;++xx) {
+        const int mx=xx-quiet,my=yy-quiet;
+        if(mx>=0&&my>=0&&mx<size&&my<size&&qr.getModule(mx,my))
+            rect(ox+xx*scale,oy+yy*scale,scale,scale,0,0,0);
+    }
+}
 
 struct ArabicForm {
     uint32_t base, isolated, finalForm, initial, medial;
@@ -147,7 +312,7 @@ static void draw() {
     rect(101,1010,42,42,88,101,242);
     drawText("M",113,1014,27,255,255,255);
     drawText("Discord PS4",385,1009,22,242,243,245);
-    drawText("Not connected",105,1038,16,148,155,164);
+    drawText(linkState==2?"Connected":"Not connected",105,1038,16,148,155,164);
 
     rect(412,0,1508,78,49,51,56);
     rect(412,77,1508,1,37,39,43);
@@ -157,18 +322,25 @@ static void draw() {
         drawText("Connect your Discord account",700,190,30,242,243,245);
         drawText("Each user connects their own account",700,248,22,185,187,194);
 
-        // QR area is intentionally a neutral placeholder until the official
-        // PlayStation Social SDK authorization service is enabled.
-        rect(910,330,360,360,255,255,255);
-        rect(925,345,330,330,235,237,240);
-        rect(1040,455,100,100,65,67,74);
-        drawText("QR",1124,478,42,255,255,255,false);
-
-        drawText("A real QR code will appear when account linking is enabled",700,735,20,196,199,206);
-        drawText("Do not scan this placeholder. No login code is active yet.",700,780,18,220,170,90);
+        if(linkState==1 && !qrUrl.empty()) {
+            drawQr(qrUrl,910,330,360);
+            drawText("Scan this QR with your phone",700,735,20,196,199,206);
+            drawText("Open the page and continue to Discord",700,780,18,196,199,206);
+        } else if(linkState==2) {
+            rect(910,330,360,360,65,67,74);
+            drawText("OK",1055,450,54,255,255,255,false);
+            drawText("Connected as",700,735,20,196,199,206);
+            drawText(linkedUser.c_str(),700,780,24,255,255,255);
+        } else {
+            rect(910,330,360,360,255,255,255);
+            rect(925,345,330,330,235,237,240);
+            rect(1040,455,100,100,65,67,74);
+            drawText("LINK",1100,478,36,255,255,255,false);
+            drawText(networkMessage.empty()?"Press X to create a real QR code":networkMessage.c_str(),650,735,19,196,199,206);
+            drawText("Each person links their own Discord account",700,780,18,148,155,164);
+        }
         rect(790,840,700,2,65,67,74);
         drawText("Press RIGHT to open the Servers page",700,875,20,148,155,164);
-        if(loginNotice) drawText("Discord sign-in is not enabled in this build",700,925,19,240,170,90);
     } else {
         drawText("Your Discord Servers",470,28,28,242,243,245);
         rect(470,140,1380,820,43,45,49);
@@ -176,8 +348,15 @@ static void draw() {
         rect(510,225,1300,1,65,67,74);
         rect(1030,355,250,250,56,58,64);
         drawText("D",1172,420,76,255,255,255,false);
-        drawText("No servers to display yet",700,670,27,242,243,245);
-        drawText("Connect your Discord account to load your servers",700,725,20,185,187,194);
+        if(linkState==2) {
+            drawText("Connected as",700,620,21,185,187,194);
+            drawText(linkedUser.c_str(),700,665,28,242,243,245);
+            drawText("Servers available: ",700,725,20,185,187,194);
+            drawText(std::to_string(linkedGuildCount).c_str(),920,725,20,242,243,245);
+        } else {
+            drawText("No servers to display yet",700,670,27,242,243,245);
+            drawText("Connect your Discord account to load your servers",700,725,20,185,187,194);
+        }
         drawText("No demo servers or fabricated data will be shown",700,775,18,148,155,164);
     }
     SDL_RenderPresent(ren);
@@ -189,6 +368,8 @@ int main() {
     if(sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL)!=0) return 2;
     if(FT_Init_FreeType(&ftLib)!=0) return 3;
     if(FT_New_Face(ftLib,"/app0/assets/fonts/NotoSansArabic.ttf",0,&arabicFace)!=0) return 4;
+    networkReady=initNetwork();
+    if(!networkReady) networkMessage="PS4 network service is unavailable.";
     win=SDL_CreateWindow("Discord PS4",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,1920,1080,SDL_WINDOW_SHOWN);
     if(!win) return 5;
     SDL_ShowWindow(win);
@@ -206,22 +387,26 @@ int main() {
             if(e.type==SDL_QUIT) run=false;
             if(e.type==SDL_KEYDOWN) {
                 if(e.key.keysym.sym==SDLK_ESCAPE) run=false;
-                if(e.key.keysym.sym==SDLK_RIGHT) { page=1; loginNotice=false; }
-                if(e.key.keysym.sym==SDLK_LEFT) { page=0; loginNotice=false; }
-                if(e.key.keysym.sym==SDLK_RETURN || e.key.keysym.sym==SDLK_KP_ENTER) { if(page==0) loginNotice=true; else page=0; }
+                if(e.key.keysym.sym==SDLK_RIGHT) page=1;
+                if(e.key.keysym.sym==SDLK_LEFT) page=0;
+                if(e.key.keysym.sym==SDLK_RETURN || e.key.keysym.sym==SDLK_KP_ENTER) { if(page==0) beginLink(); else page=0; }
                 draw();
             }
             if(e.type==SDL_JOYBUTTONDOWN && e.jbutton.button==0) {
-                if(page==0) loginNotice=true; else page=0;
+                if(page==0) beginLink(); else page=0;
                 draw();
             }
             if(e.type==SDL_JOYHATMOTION) {
-                if(e.jhat.value&SDL_HAT_RIGHT) { page=1; loginNotice=false; }
-                if(e.jhat.value&SDL_HAT_LEFT) { page=0; loginNotice=false; }
+                if(e.jhat.value&SDL_HAT_RIGHT) page=1;
+                if(e.jhat.value&SDL_HAT_LEFT) page=0;
                 draw();
             }
         }
+        const uint32_t now=SDL_GetTicks();
+        if(page==0 && linkState==1 && now-lastPoll>=2000) { pollLink(); lastPoll=now; draw(); }
+        SDL_Delay(10);
     }
+    shutdownNetwork();
     if(pad) SDL_JoystickClose(pad);
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);

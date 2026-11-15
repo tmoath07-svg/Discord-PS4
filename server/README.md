@@ -33,7 +33,7 @@ Server-side Discord OAuth2 Authorization Code + PKCE. Each PS4 installation star
 4. Set the same callback URL as `DISCORD_REDIRECT_URI`.
 5. Generate a cryptographically random 32-byte key, base64url-encode it without padding, and store it as `TOKEN_ENCRYPTION_KEY`.
 6. Run the GitHub Actions workflow **Deploy Discord OAuth Worker** manually.
-7. Verify `/api/health` reports `configured: true`. Then test a real OAuth link before enabling the native PS4 client.
+7. Verify `/api/health` reports `configured: true`. Then set the GitHub Actions secret `DISCORD_WORKER_BASE_URL` to the Worker origin and run the native PKG build again.
 
 ### GitHub Actions secrets required
 
@@ -43,6 +43,7 @@ Server-side Discord OAuth2 Authorization Code + PKCE. Each PS4 installation star
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
 - `DISCORD_REDIRECT_URI`
+- `DISCORD_WORKER_BASE_URL` — the Worker origin, such as `https://discord-ps4-link.<YOUR-WORKERS-SUBDOMAIN>.workers.dev` (used by the native PKG build).
 - `TOKEN_ENCRYPTION_KEY`
 
 Never put any of these values in source code, issues, chat messages, or the PS4 package. Do not share Discord passwords or personal user tokens.
