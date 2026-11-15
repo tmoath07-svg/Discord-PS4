@@ -13,12 +13,19 @@ permissions:
 jobs:
   build-pkg:
     runs-on: ubuntu-22.04
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
+
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang lld make
+        run: sudo apt-get update && sudo apt-get install -y clang lld make git
+
+      - name: Set up .NET for patched PKG builder
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
       - name: Download and verify OpenOrbis toolchain v0.5.4
         run: |
           curl --fail --location --retry 3 https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz --output /tmp/openorbis.tar.gz
@@ -26,28 +33,45 @@ jobs:
           mkdir -p "$RUNNER_TEMP/openorbis"
           tar -xzf /tmp/openorbis.tar.gz -C "$RUNNER_TEMP/openorbis" --strip-components=2
           echo "OO_PS4_TOOLCHAIN=$RUNNER_TEMP/openorbis" >> "$GITHUB_ENV"
+
+      - name: Build patched LibOrbisPkg to fix PlayGo chunk SHA sizing
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/OpenOrbis/LibOrbisPkg.git "$RUNNER_TEMP/LibOrbisPkg"
+          git -C "$RUNNER_TEMP/LibOrbisPkg" checkout 92a4e7f8e5914cb06b52ba3ae6b0675da438a051
+          git -C "$RUNNER_TEMP/LibOrbisPkg" apply "$GITHUB_WORKSPACE/.github/patches/liborbispkg-chunk-sha-size.patch"
+          dotnet publish "$RUNNER_TEMP/LibOrbisPkg/PkgTool.Core/PkgTool.Core.csproj" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o "$RUNNER_TEMP/patched-pkgtool"
+          test -s "$RUNNER_TEMP/patched-pkgtool/PkgTool.Core"
+          install -m 0755 "$RUNNER_TEMP/patched-pkgtool/PkgTool.Core" "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core"
+          "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core" 2>&1 | head -n 20 || true
+
       - name: Install native interface into official SDL2 sample layout
         run: |
           test -f "$OO_PS4_TOOLCHAIN/samples/SDL2/Makefile"
           test -f "$OO_PS4_TOOLCHAIN/include/proto-include.h"
           cp native/main.cpp "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2/main.cpp"
           find "$OO_PS4_TOOLCHAIN/samples/SDL2/SDL2" -maxdepth 1 -type f -name '*.cpp' ! -name 'main.cpp' -delete
+
       - name: Compile ELF and create PKG
         working-directory: ${{ runner.temp }}/openorbis/samples/SDL2
         run: |
+          set -euo pipefail
           make clean || true
-          make -j2
-          test -s BREW00090.pkg
+          make -j2 TITLE="Discord PS4" VERSION=1.00 TITLE_ID=DISC00001 CONTENT_ID=IV0000-DISC00001_00-DISCORDPS4000000
+          test -s IV0000-DISC00001_00-DISCORDPS4000000.pkg
           test -s eboot.bin
           mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp BREW00090.pkg "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
+          cp IV0000-DISC00001_00-DISCORDPS4000000.pkg "$GITHUB_WORKSPACE/dist/Discord-PS4.pkg"
           cp eboot.bin "$GITHUB_WORKSPACE/dist/eboot.bin"
+
       - name: Validate package
         run: |
+          set -euo pipefail
           test -s dist/Discord-PS4.pkg
           test -s dist/eboot.bin
+          "$OO_PS4_TOOLCHAIN/bin/linux/PkgTool.Core" pkg_validate dist/Discord-PS4.pkg
           file dist/Discord-PS4.pkg dist/eboot.bin
           sha256sum dist/Discord-PS4.pkg dist/eboot.bin > dist/SHA256SUMS.txt
+
       - name: Upload PKG artifact
         uses: actions/upload-artifact@v4
         with:
