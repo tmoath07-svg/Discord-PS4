@@ -31,8 +31,7 @@ Server-side Discord OAuth2 Authorization Code + PKCE. Each PS4 installation star
 3. Create a Discord application in the Discord Developer Portal. Copy its Application ID and Client Secret. Register the exact callback URL:
    `https://discord-ps4-link.<YOUR-WORKERS-SUBDOMAIN>.workers.dev/auth/callback`
 4. Set the same callback URL as `DISCORD_REDIRECT_URI`.
-5. Generate a cryptographically random 32-byte key, base64url-encode it without padding, and store it as `TOKEN_ENCRYPTION_KEY`.
-6. Run the GitHub Actions workflow **Deploy Discord OAuth Worker** manually.
+5. Run the GitHub Actions workflow **Deploy Discord OAuth Worker** manually. It creates and preserves the encryption key directly in Cloudflare.
 6. Verify `/api/health` reports `configured: true`. Then set the GitHub Actions secret `DISCORD_WORKER_BASE_URL` to the Worker origin and run the native PKG build again.
 
 ### GitHub Actions secrets required
