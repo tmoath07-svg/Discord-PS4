@@ -19,7 +19,7 @@ async function start(req,env){
  const miss=missing(env);if(miss.length)return json({error:"server_not_configured",missing:miss},503);
  const ip=req.headers.get("CF-Connecting-IP")||"unknown",rk="rate:"+b64(await hash(ip));
  if(await env.LINKS.get(rk))return json({error:"rate_limited"},429);
- await env.LINKS.put(rk,"1",{expirationTtl:10});
+ await env.LINKS.put(rk,"1",{expirationTtl:60});
  const id=random(18),poll=random(32),expires=Date.now()+LINK_TTL*1000;
  await env.LINKS.put("link:"+id,JSON.stringify({id,pollHash:b64(await hash(poll)),status:"pending",createdAt:Date.now(),expiresAt:expires}),{expirationTtl:LINK_TTL});
  const origin=new URL(req.url).origin;
