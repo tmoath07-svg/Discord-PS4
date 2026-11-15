@@ -211,7 +211,11 @@ int main() {
                 if(e.key.keysym.sym==SDLK_RETURN || e.key.keysym.sym==SDLK_KP_ENTER) { if(page==0) loginNotice=true; else page=0; }
                 draw();
             }
-            if(e.type==SDL_JOYBUTTONDOWN && e.jbutton.button==0) {\n                if(page==0) loginNotice=true; else page=0;\n                draw();\n            }\n            if(e.type==SDL_JOYHATMOTION) {
+            if(e.type==SDL_JOYBUTTONDOWN && e.jbutton.button==0) {
+                if(page==0) loginNotice=true; else page=0;
+                draw();
+            }
+            if(e.type==SDL_JOYHATMOTION) {
                 if(e.jhat.value&SDL_HAT_RIGHT) { page=1; loginNotice=false; }
                 if(e.jhat.value&SDL_HAT_LEFT) { page=0; loginNotice=false; }
                 draw();
