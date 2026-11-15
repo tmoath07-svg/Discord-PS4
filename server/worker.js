@@ -12,7 +12,7 @@ const read=async(kv,k)=>{const s=await kv.get(k);if(!s)return null;try{return JS
 const missing=env=>["LINKS","DISCORD_CLIENT_ID","DISCORD_CLIENT_SECRET","DISCORD_REDIRECT_URI","TOKEN_ENCRYPTION_KEY"].filter(k=>!env[k]);
 const bearer=req=>{const s=req.headers.get("authorization")||"";return s.startsWith("Bearer ")?s.slice(7):"";};
 const getSession=async(env,id)=>/^[A-Za-z0-9_-]{20,40}$/.test(id)?read(env.LINKS,"link:"+id):null;
-const page=(title,message,href)=>'<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1e1f22;color:#f2f3f5;font:17px system-ui;padding:22px}.card{width:min(100%,480px);background:#2b2d31;border-radius:18px;padding:30px}h1{font-size:25px}p{color:#c4c7ce;line-height:1.8}.button{display:block;text-align:center;text-decoration:none;background:#5865f2;color:white;padding:14px;border-radius:10px;font-weight:700;margin-top:25px}.muted{color:#949ba4;font-size:13px}</style><main class="card"><h1>'+title+'</h1><p>'+message+'</p>'+(href?'<a class="button" href="'+href+'">المتابعة إلى Discord</a>':'<p class="muted">يمكنك إغلاق هذه الصفحة.</p>')+'<p class="muted">لا تشارك رموز الربط مع أي شخص. الرمز صالح لهذه الجلسة فقط.</p></main></html>';
+const page=(title,message,href)=>'<!doctype html><html lang="en" dir="ltr"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><title>'+title+'</title><style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#1e1f22;color:#f2f3f5;font:17px system-ui;padding:22px}.card{width:min(100%,480px);background:#2b2d31;border-radius:18px;padding:30px}h1{font-size:25px}p{color:#c4c7ce;line-height:1.8}.button{display:block;text-align:center;text-decoration:none;background:#5865f2;color:white;padding:14px;border-radius:10px;font-weight:700;margin-top:25px}.muted{color:#949ba4;font-size:13px}</style><main class="card"><h1>'+title+'</h1><p>'+message+'</p>'+(href?'<a class="button" href="'+href+'">Continue to Discord</a>':'<p class="muted">You can close this page.</p>')+'<p class="muted">Never share your linking codes. This link is valid only for this session.</p></main></html>';
 const html=(body,status=200)=>new Response(body,{status,headers:{"content-type":"text/html; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","content-security-policy":"default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"}});
 async function start(req,env){
  if(req.method!=="POST")return json({error:"method_not_allowed"},405);
@@ -27,13 +27,13 @@ async function start(req,env){
 }
 async function linkPage(id,env,req){
  const s=await getSession(env,id);
- if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("انتهت جلسة الربط","ارجع إلى تطبيق PS4 واطلب رمز QR جديدًا."),410);
+ if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("Link session expired","Return to the PS4 app and request a new QR code."),410);
  const u=new URL("/auth/discord",req.url);u.searchParams.set("session",id);
  return html(page("ربط حساب Discord","سجّل الدخول في Discord الرسمي ووافق على الصلاحيات المطلوبة. لن نطلب كلمة مرورك داخل هذه الصفحة.",u.toString()));
 }
 async function begin(req,env,id){
  const s=await getSession(env,id);
- if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("انتهت جلسة الربط","ارجع إلى PS4 وابدأ جلسة جديدة."),410);
+ if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("Link session expired","Return to the PS4 app and start a new session."),410);
  const state=random(32),verifier=random(48),challenge=b64(await crypto.subtle.digest("SHA-256",enc.encode(verifier)));
  await env.LINKS.put("oauth:"+state,JSON.stringify({sessionId:id,verifier}),{expirationTtl:LINK_TTL});
  const u=new URL(AUTHORIZE);
@@ -55,15 +55,16 @@ async function openSeal(value,keyText){
 }
 async function callback(req,env){
  const u=new URL(req.url),state=u.searchParams.get("state")||"",st=await read(env.LINKS,"oauth:"+state);
- if(!state||!st)return html(page("تعذر إكمال الربط","انتهت صلاحية الطلب. ارجع إلى PS4 وابدأ جلسة جديدة."),400);
+ if(!state||!st)return html(page("Could not complete linking","This request expired. Return to the PS4 app and start a new session."),400);
  await env.LINKS.delete("oauth:"+state);
+ if(u.searchParams.get("iss")!=="https://discord.com")return html(page("Sign-in could not be verified","The authorization issuer did not match Discord. Start a new linking session."),400);
  const s=await getSession(env,st.sessionId);
- if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("انتهت جلسة الربط","ارجع إلى PS4 وابدأ جلسة جديدة."),410);
- if(u.searchParams.has("error")){s.status="denied";await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("لم تتم الموافقة","لم يتم ربط الحساب. ارجع إلى PS4 وحاول مرة أخرى."),400);}
- const code=u.searchParams.get("code");if(!code)return html(page("تعذر إكمال الربط","لم يصل رمز التفويض من Discord."),400);
+ if(!s||s.status!=="pending"||s.expiresAt<Date.now())return html(page("Link session expired","Return to the PS4 app and start a new session."),410);
+ if(u.searchParams.has("error")){s.status="denied";await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("Authorization declined","The account was not linked. Return to the PS4 app and try again."),400);}
+ const code=u.searchParams.get("code");if(!code)return html(page("Could not complete linking","Discord did not return an authorization code."),400);
  const form=new URLSearchParams({client_id:env.DISCORD_CLIENT_ID,client_secret:env.DISCORD_CLIENT_SECRET,grant_type:"authorization_code",code,redirect_uri:env.DISCORD_REDIRECT_URI,code_verifier:st.verifier});
  const tr=await fetch(TOKEN,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});
- const token=await tr.json();if(!tr.ok||!token.access_token||!token.refresh_token){s.status="error";s.error="token_exchange_failed";await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("فشل ربط Discord","تعذر إكمال التفويض. راجع إعدادات تطبيق Discord وحاول مجددًا."),502);}
+ const token=await tr.json();if(!tr.ok||!token.access_token||!token.refresh_token){s.status="error";s.error="token_exchange_failed";await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("Discord linking failed","Authorization could not be completed. Check the Discord application settings and try again."),502);}
  const headers={authorization:"Bearer "+token.access_token};
  const ur=await fetch(API+"/users/@me",{headers});if(!ur.ok)return fail(env,s,"profile_fetch_failed");
  const user=await ur.json(),gr=await fetch(API+"/users/@me/guilds?limit=200",{headers});
@@ -72,9 +73,9 @@ async function callback(req,env){
  s.guilds=guilds.map(g=>({id:g.id,name:g.name,icon:g.icon||null,owner:!!g.owner}));
  s.refresh_token=await seal(token.refresh_token,env.TOKEN_ENCRYPTION_KEY);s.scopes=token.scope||"identify guilds";
  await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:LINKED_TTL});
- return html(page("تم ربط الحساب بنجاح","تم ربط حساب Discord بجهاز PS4. يمكنك إغلاق هذه الصفحة والرجوع إلى التطبيق."));
+ return html(page("Account linked successfully","Your Discord account is now linked to the PS4 app. You can close this page and return to the app."));
 }
-async function fail(env,s,reason){s.status="error";s.error=reason;await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("تعذر جلب بيانات الحساب","لم يتمكن التطبيق من جلب بيانات الحساب والسيرفرات المسموح بها. حاول الربط من جديد."),502);}
+async function fail(env,s,reason){s.status="error";s.error=reason;await env.LINKS.put("link:"+s.id,JSON.stringify(s),{expirationTtl:300});return html(page("Could not load account data","The app could not retrieve your account and permitted server list. Please link again."),502);}
 async function status(req,env,id){
  if(req.method!=="GET")return json({error:"method_not_allowed"},405);
  const s=await getSession(env,id);if(!s)return json({error:"session_not_found_or_expired"},404);
@@ -107,7 +108,7 @@ export default {async fetch(req,env){
  const u=new URL(req.url);
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-methods":"GET,POST,OPTIONS","access-control-allow-headers":"authorization,content-type","access-control-max-age":"86400"}});
  try{
-  if(u.pathname==="/api/health")return json({ok:true,service:"discord-ps4-link"});
+  if(u.pathname==="/api/health"){const miss=missing(env);return json({ok:true,service:"discord-ps4-link",configured:miss.length===0,missing:miss});}
   if(u.pathname==="/api/link/start"){const r=await start(req,env);r.headers.set("access-control-allow-origin","*");return r;}
   const sm=u.pathname.match(/^\/api\/link\/status\/([A-Za-z0-9_-]+)$/);
   if(sm){const r=await status(req,env,sm[1]);r.headers.set("access-control-allow-origin","*");return r;}
