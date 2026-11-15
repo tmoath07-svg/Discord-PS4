@@ -3,7 +3,7 @@ const AUTHORIZE="https://discord.com/oauth2/authorize";
 const TOKEN=API+"/oauth2/token";
 const LINK_TTL=600, LINKED_TTL=2592000, enc=new TextEncoder();
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff"}});
-const b64=a=>{let s="";for(const n of a)s+=String.fromCharCode(n);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");};
+const b64=a=>{if(a instanceof ArrayBuffer)a=new Uint8Array(a);let s="";for(const n of a)s+=String.fromCharCode(n);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");};
 const un64=s=>{s=s.replace(/-/g,"+").replace(/_/g,"/");const x=atob(s+"=".repeat((4-s.length%4)%4));return Uint8Array.from(x,c=>c.charCodeAt(0));};
 const random=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return b64(a);};
 const hash=async s=>new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(s)));
