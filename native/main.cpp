@@ -34,6 +34,7 @@ static uint32_t lastPoll=0;
 static std::string toastTitle, toastBody;
 static uint32_t toastUntil=0;
 static void rect(int x,int y,int w,int h,int r,int g,int b);
+static bool saveSession();
 // Presentation layer only: Discord DM events require the approved Social SDK/RPC notification bridge.
 // The current identify+guilds OAuth flow cannot supply private-message events.
 static void showToast(const std::string& title,const std::string& body) {
