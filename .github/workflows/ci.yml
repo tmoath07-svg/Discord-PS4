@@ -22,6 +22,8 @@ jobs:
           node-version: 22
       - name: Validate JavaScript
         run: npm run check
+      - name: Test OAuth Worker
+        run: node --test server/worker.test.mjs
       - name: Validate required project files
         run: |
           test -s index.html
